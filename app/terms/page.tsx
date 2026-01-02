@@ -1,0 +1,162 @@
+export default function TermsOfService() {
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white py-16 px-6">
+      <div className="max-w-4xl mx-auto">
+        <div className="bg-white rounded-2xl shadow-xl p-8 md:p-12">
+          <h1 className="text-4xl font-bold mb-4 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            Terms of Service
+          </h1>
+          <p className="text-gray-600 mb-8">Last updated: January 2, 2026</p>
+
+          <div className="space-y-8 text-gray-700">
+            <section>
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">1. Acceptance of Terms</h2>
+              <p>
+                By accessing and using Alpha Wings AI ("the Service"), you accept and agree to be 
+                bound by these Terms of Service. If you do not agree to these terms, please do not 
+                use the Service.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">2. Description of Service</h2>
+              <p>
+                Alpha Wings AI provides AI-powered social media content generation and scheduling 
+                services. We reserve the right to modify, suspend, or discontinue the Service at 
+                any time without notice.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">3. User Accounts</h2>
+              <p className="mb-4">To use our Service, you must:</p>
+              <ul className="list-disc pl-6 space-y-2">
+                <li>Be at least 18 years old</li>
+                <li>Provide accurate and complete registration information</li>
+                <li>Maintain the security of your account credentials</li>
+                <li>Notify us immediately of any unauthorized use</li>
+              </ul>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">4. Subscription Plans</h2>
+              <p className="mb-4">We offer several subscription tiers:</p>
+              <ul className="list-disc pl-6 space-y-2">
+                <li><strong>Free Plan:</strong> 5 posts per month</li>
+                <li><strong>Starter Plan:</strong> 50 posts per month at £9.99/month</li>
+                <li><strong>Pro Plan:</strong> 200 posts per month at £29.99/month</li>
+                <li><strong>Enterprise Plan:</strong> Unlimited posts at £99.99/month</li>
+              </ul>
+              <p className="mt-4">
+                All subscriptions automatically renew unless cancelled before the renewal date.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">5. Payment Terms</h2>
+              <p>
+                Payments are processed securely through Stripe. By providing payment information, 
+                you authorize us to charge your payment method for all fees incurred. All fees are 
+                non-refundable except as required by law.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">6. Cancellation and Refunds</h2>
+              <p>
+                You may cancel your subscription at any time from your account settings. Cancellations 
+                take effect at the end of the current billing period. No refunds are provided for 
+                partial months or unused posts.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">7. Acceptable Use</h2>
+              <p className="mb-4">You agree NOT to use the Service to:</p>
+              <ul className="list-disc pl-6 space-y-2">
+                <li>Generate illegal, harmful, or offensive content</li>
+                <li>Violate any intellectual property rights</li>
+                <li>Spam or harass others</li>
+                <li>Impersonate any person or entity</li>
+                <li>Distribute malware or viruses</li>
+                <li>Attempt to gain unauthorized access to our systems</li>
+              </ul>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">8. Content Ownership</h2>
+              <p>
+                You retain all rights to content you generate using our Service. We claim no 
+                ownership over your generated content. However, you grant us a license to use, 
+                store, and display your content as necessary to provide the Service.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">9. AI-Generated Content Disclaimer</h2>
+              <p>
+                Content generated by our AI is provided "as is" without warranties. You are 
+                responsible for reviewing and approving all content before publication. We are 
+                not liable for any consequences arising from your use of AI-generated content.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">10. Limitation of Liability</h2>
+              <p>
+                To the maximum extent permitted by law, Alpha Wings AI shall not be liable for any 
+                indirect, incidental, special, consequential, or punitive damages arising out of 
+                your use of the Service.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">11. Termination</h2>
+              <p>
+                We reserve the right to terminate or suspend your account immediately, without prior 
+                notice, for conduct that we believe violates these Terms or is harmful to other users, 
+                us, or third parties.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">12. Changes to Terms</h2>
+              <p>
+                We may modify these Terms at any time. Continued use of the Service after changes 
+                constitutes acceptance of the new Terms.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">13. Governing Law</h2>
+              <p>
+                These Terms are governed by the laws of the United Kingdom. Any disputes shall be 
+                resolved in the courts of the United Kingdom.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">14. Contact Information</h2>
+              <p>
+                For questions about these Terms, contact us at:
+              </p>
+              <p className="mt-4">
+                <strong>Email:</strong> legal@alphawingsai.com<br />
+                <strong>Website:</strong> alphawingsai.com
+              </p>
+            </section>
+          </div>
+
+          <div className="mt-12 pt-8 border-t border-gray-200">
+            <a 
+              href="/"
+              className="text-blue-600 hover:text-blue-700 font-semibold"
+            >
+              ← Back to Home
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
