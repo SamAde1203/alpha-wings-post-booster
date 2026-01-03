@@ -87,4 +87,9 @@ export const analytics = {
   clickUpgrade: (currentPlan: string, targetPlan: string) => {
     analytics.track('upgrade_button_clicked', { currentPlan, targetPlan })
   },
+  
+  // CTA tracking
+  clickCTA: (ctaName: string, location: string) => {
+    analytics.track('cta_clicked', { ctaName, location })
+  },
 }
