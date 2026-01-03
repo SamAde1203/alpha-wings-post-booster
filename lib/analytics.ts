@@ -74,4 +74,17 @@ export const analytics = {
   error: (errorType: string, errorMessage: string, location: string) => {
     analytics.track('error_occurred', { errorType, errorMessage, location })
   },
+  
+  // Usage tracking
+  usageLimitReached: (plan: string, limit: number) => {
+    analytics.track('usage_limit_reached', { plan, limit })
+  },
+  
+  viewUsageStats: () => {
+    analytics.track('usage_stats_viewed')
+  },
+  
+  clickUpgrade: (currentPlan: string, targetPlan: string) => {
+    analytics.track('upgrade_button_clicked', { currentPlan, targetPlan })
+  },
 }
