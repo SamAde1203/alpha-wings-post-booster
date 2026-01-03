@@ -4,10 +4,17 @@ import { createClient } from '@supabase/supabase-js'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '');
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-)
+// Function to get Supabase client - only created at runtime
+function getSupabaseClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (!url || !key) {
+    throw new Error('Missing Supabase credentials')
+  }
+
+  return createClient(url, key)
+}
 
 // Map Stripe price IDs to subscription tiers
 const PRICE_TIER_MAP: Record<string, { tier: string; limit: number }> = {
@@ -17,6 +24,8 @@ const PRICE_TIER_MAP: Record<string, { tier: string; limit: number }> = {
 }
 
 export async function POST(request: NextRequest) {
+  const supabase = getSupabaseClient()
+
   const body = await request.text()
   const signature = request.headers.get('stripe-signature') || ''
 
