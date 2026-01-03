@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import Navigation from '@/components/Navigation'
+import { analytics } from '@/lib/analytics'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -28,6 +29,18 @@ export default function Dashboard() {
     checkAuth()
   }, [])
 
+  // 🎯 Track dashboard view on mount
+  useEffect(() => {
+    if (user) {
+      analytics.viewDashboard()
+      analytics.trackEvent('dashboard_plan_view', {
+        plan: user.subscription_tier || 'free',
+        posts_remaining: postsRemaining,
+        posts_used: user.posts_this_month || 0
+      })
+    }
+  }, [user])
+
   async function checkAuth() {
     try {
       const { data } = await supabase.auth.getSession()
@@ -42,6 +55,8 @@ export default function Dashboard() {
       await loadUserData(userId)
     } catch (err) {
       console.error('Auth error:', err)
+      // 🎯 Track auth error
+      analytics.error('authentication', 'Session check failed', 'dashboard')
       router.push('/login')
     } finally {
       setIsLoading(false)
@@ -84,6 +99,12 @@ export default function Dashboard() {
   async function handleGenerate() {
     if (!topic.trim()) {
       setError('Please enter a topic')
+      // 🎯 Track validation error
+      analytics.trackEvent('generate_validation_error', {
+        error: 'empty_topic',
+        platform,
+        tone
+      })
       return
     }
 
@@ -94,6 +115,9 @@ export default function Dashboard() {
     setPosts([])
 
     try {
+      // 🎯 Track post generation attempt
+      analytics.generatePost(platform, tone, topic)
+
       const res = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -107,8 +131,27 @@ export default function Dashboard() {
       setPosts(data.posts)
       setPostsRemaining(data.postsRemaining)
       await loadUserData(userId)
+
+      // 🎯 Track successful generation
+      analytics.trackEvent('post_generation_success', {
+        platform,
+        tone,
+        topic,
+        variations_generated: data.posts.length,
+        posts_remaining: data.postsRemaining,
+        plan: user?.subscription_tier || 'free'
+      })
+
     } catch (err: any) {
       setError(err.message)
+      
+      // 🎯 Track generation error
+      analytics.error('post_generation', err.message, 'dashboard')
+      
+      // 🎯 Track if user hit limit
+      if (err.message.includes('limit')) {
+        analytics.usageLimitReached(user?.subscription_tier || 'free', tierInfo.limit)
+      }
     } finally {
       setLoading(false)
     }
@@ -116,7 +159,30 @@ export default function Dashboard() {
 
   function copyPost(content: string) {
     navigator.clipboard.writeText(content)
+    
+    // 🎯 Track copy event
+    analytics.copyPost(platform)
+    
     alert('✅ Copied to clipboard!')
+  }
+
+  // 🎯 Track platform selection
+  function handlePlatformChange(newPlatform: string) {
+    setPlatform(newPlatform)
+    analytics.trackEvent('platform_selected', {
+      platform: newPlatform,
+      previous_platform: platform
+    })
+  }
+
+  // 🎯 Track tone selection
+  function handleToneChange(newTone: string) {
+    setTone(newTone)
+    analytics.trackEvent('tone_selected', {
+      tone: newTone,
+      previous_tone: tone,
+      platform
+    })
   }
 
   if (isLoading) {
@@ -137,7 +203,7 @@ export default function Dashboard() {
           <div className="mb-8 flex items-center gap-4">
             <div className="w-12 h-12 sm:w-16 sm:h-16 flex-shrink-0">
               <Image
-                src="alpha-wings-ai-logo.png"
+                src="/alpha-wings-ai-logo.png"
                 alt="Alpha Wings Logo"
                 width={64}
                 height={64}
@@ -176,17 +242,26 @@ export default function Dashboard() {
 
           {/* Plan Details - Responsive Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-6 sm:mb-8">
-            <div className="bg-white rounded-xl p-4 shadow-md">
+            <div 
+              className="bg-white rounded-xl p-4 shadow-md cursor-pointer hover:shadow-lg transition-shadow"
+              onClick={() => analytics.viewUsageStats()}
+            >
               <div className="text-gray-600 text-xs sm:text-sm font-medium">Monthly Limit</div>
               <div className="text-2xl sm:text-2xl font-bold text-blue-600 mt-2">
                 {isUnlimited ? '♾️' : tierInfo.limit}
               </div>
             </div>
-            <div className="bg-white rounded-xl p-4 shadow-md">
+            <div 
+              className="bg-white rounded-xl p-4 shadow-md cursor-pointer hover:shadow-lg transition-shadow"
+              onClick={() => analytics.viewUsageStats()}
+            >
               <div className="text-gray-600 text-xs sm:text-sm font-medium">Used This Month</div>
               <div className="text-2xl sm:text-2xl font-bold text-orange-600 mt-2">{user?.posts_this_month || 0}</div>
             </div>
-            <div className="bg-white rounded-xl p-4 shadow-md">
+            <div 
+              className="bg-white rounded-xl p-4 shadow-md cursor-pointer hover:shadow-lg transition-shadow"
+              onClick={() => analytics.viewUsageStats()}
+            >
               <div className="text-gray-600 text-xs sm:text-sm font-medium">Remaining</div>
               <div className="text-2xl sm:text-2xl font-bold text-green-600 mt-2">
                 {isUnlimited ? '♾️' : postsRemaining}
@@ -207,7 +282,11 @@ export default function Dashboard() {
                   </p>
                 </div>
                 <button
-                  onClick={() => window.location.href = '/pricing'}
+                  onClick={() => {
+                    // 🎯 Track upgrade click
+                    analytics.clickUpgrade(tierInfo.name, tierInfo.name === 'FREE' ? 'Starter' : tierInfo.name === 'STARTER' ? 'Pro' : 'Agency')
+                    window.location.href = '/pricing'
+                  }}
                   className="px-4 sm:px-6 py-2 sm:py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl whitespace-nowrap transition-all text-sm sm:text-base"
                 >
                   🚀 Upgrade Now
@@ -229,7 +308,15 @@ export default function Dashboard() {
                   </p>
                 </div>
                 <button
-                  onClick={() => window.location.href = '/pricing'}
+                  onClick={() => {
+                    // 🎯 Track upgrade click from limit reached
+                    analytics.clickUpgrade(tierInfo.name, 'any_paid_plan')
+                    analytics.trackEvent('limit_reached_upgrade_click', {
+                      current_plan: tierInfo.name,
+                      posts_used: user?.posts_this_month || 0
+                    })
+                    window.location.href = '/pricing'
+                  }}
                   className="px-4 sm:px-6 py-2 sm:py-3 bg-gradient-to-r from-red-600 to-orange-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl whitespace-nowrap transition-all text-sm sm:text-base"
                 >
                   📈 Upgrade Now
@@ -261,7 +348,7 @@ export default function Dashboard() {
                   {['linkedin', 'twitter', 'facebook', 'instagram'].map((p) => (
                     <button
                       key={p}
-                      onClick={() => setPlatform(p)}
+                      onClick={() => handlePlatformChange(p)}
                       disabled={!isUnlimited && postsRemaining <= 0}
                       className={`p-2 sm:p-3 rounded-xl border-2 font-medium capitalize transition-all text-sm sm:text-base ${
                         platform === p
@@ -281,7 +368,7 @@ export default function Dashboard() {
                   {['professional', 'casual', 'enthusiastic', 'educational', 'inspirational'].map((t) => (
                     <button
                       key={t}
-                      onClick={() => setTone(t)}
+                      onClick={() => handleToneChange(t)}
                       disabled={!isUnlimited && postsRemaining <= 0}
                       className={`p-2 sm:p-3 rounded-xl border-2 font-medium capitalize transition-all text-xs sm:text-base ${
                         tone === t

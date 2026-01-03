@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { loadStripe } from '@stripe/stripe-js'
+import { analytics } from '@/lib/analytics'
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '')
 
@@ -9,80 +10,95 @@ export default function PricingPage() {
   const [loading, setLoading] = useState<string | null>(null)
   const userId = '438a1d7b-a880-4956-ba3b-e6a69277019b'
 
+  // 🎯 Track pricing page view on mount
+  useEffect(() => {
+    analytics.viewPricing()
+  }, [])
+
   const plans = [
-  {
-    name: 'Free',
-    price: '$0',
-    period: 'forever',
-    posts: '5 posts/month',
-    features: [
-      '5 AI-generated posts',
-      'All social platforms',
-      'Basic analytics',
-      'Email support',
-    ],
-    priceId: null,
-    highlight: false,
-  },
-  {
-    name: 'Starter',
-    price: '$9.99',
-    period: '/month',
-    posts: '50 posts/month',
-    features: [
-      '50 AI-generated posts',
-      'All social platforms',
-      'Advanced analytics',
-      'Priority support',
-      'Schedule posts',
-      'Brand voice training',
-    ],
-    priceId: 'price_1SlDhaCsaEmlzaAVHU6w35Ht',
-    highlight: true,
-  },
-  {
-    name: 'Pro',
-    price: '$29.99',
-    period: '/month',
-    posts: '200 posts/month',
-    features: [
-      '200 AI-generated posts',
-      'All social platforms',
-      'Premium analytics',
-      'Priority support',
-      'Schedule posts',
-      'Brand voice training',
-      'Team collaboration',
-      'API access',
-    ],
-    priceId: 'price_1SlDj0CsaEmlzaAVozGhgYC7',
-    highlight: false,
-  },
-  {
-    name: 'Agency',
-    price: '$99.99',
-    period: '/month',
-    posts: 'Unlimited posts',
-    features: [
-      'Unlimited AI posts',
-      'All social platforms',
-      'Enterprise analytics',
-      'Dedicated support',
-      'Schedule posts',
-      'Brand voice training',
-      'Team collaboration',
-      'API access',
-      'White-label option',
-      'Custom integrations',
-    ],
-    priceId: 'price_1SlDk9CsaEmlzaAVbEO1lJKJ',
-    highlight: false,
-  },
-]
+    {
+      name: 'Free',
+      price: '$0',
+      period: 'forever',
+      posts: '5 posts/month',
+      priceAmount: 0,
+      features: [
+        '5 AI-generated posts',
+        'All social platforms',
+        'Basic analytics',
+        'Email support',
+      ],
+      priceId: null,
+      highlight: false,
+    },
+    {
+      name: 'Starter',
+      price: '$9.99',
+      period: '/month',
+      posts: '50 posts/month',
+      priceAmount: 9.99,
+      features: [
+        '50 AI-generated posts',
+        'All social platforms',
+        'Advanced analytics',
+        'Priority support',
+        'Schedule posts',
+        'Brand voice training',
+      ],
+      priceId: 'price_1SlDhaCsaEmlzaAVHU6w35Ht',
+      highlight: true,
+    },
+    {
+      name: 'Pro',
+      price: '$29.99',
+      period: '/month',
+      posts: '200 posts/month',
+      priceAmount: 29.99,
+      features: [
+        '200 AI-generated posts',
+        'All social platforms',
+        'Premium analytics',
+        'Priority support',
+        'Schedule posts',
+        'Brand voice training',
+        'Team collaboration',
+        'API access',
+      ],
+      priceId: 'price_1SlDj0CsaEmlzaAVozGhgYC7',
+      highlight: false,
+    },
+    {
+      name: 'Agency',
+      price: '$99.99',
+      period: '/month',
+      posts: 'Unlimited posts',
+      priceAmount: 99.99,
+      features: [
+        'Unlimited AI posts',
+        'All social platforms',
+        'Enterprise analytics',
+        'Dedicated support',
+        'Schedule posts',
+        'Brand voice training',
+        'Team collaboration',
+        'API access',
+        'White-label option',
+        'Custom integrations',
+      ],
+      priceId: 'price_1SlDk9CsaEmlzaAVbEO1lJKJ',
+      highlight: false,
+    },
+  ]
 
+  async function handleSubscribe(priceId: string | null, planName: string, priceAmount: number) {
+    // 🎯 Track plan click
+    analytics.clickPricingPlan(planName, priceAmount)
 
-  async function handleSubscribe(priceId: string | null, planName: string) {
     if (!priceId) {
+      // 🎯 Track free plan selection
+      analytics.trackEvent('free_plan_selected', {
+        plan: planName
+      })
       window.location.href = '/dashboard'
       return
     }
@@ -90,6 +106,9 @@ export default function PricingPage() {
     setLoading(planName)
 
     try {
+      // 🎯 Track checkout start
+      analytics.startCheckout(planName, priceAmount)
+
       const res = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -104,14 +123,28 @@ export default function PricingPage() {
 
       const { url } = data
 
-      // NEW METHOD: Direct redirect to Stripe Checkout
+      // Direct redirect to Stripe Checkout
       if (url) {
+        // 🎯 Track redirect to Stripe
+        analytics.trackEvent('redirect_to_stripe', {
+          plan: planName,
+          price: priceAmount,
+          priceId: priceId
+        })
         window.location.href = url
       } else {
         throw new Error('No checkout URL received')
       }
     } catch (error: any) {
       console.error('Subscription error:', error)
+      
+      // 🎯 Track checkout error
+      analytics.error('checkout', error.message || 'Payment failed', 'pricing_page')
+      analytics.trackEvent('checkout_error', {
+        plan: planName,
+        error: error.message || 'Unknown error'
+      })
+      
       alert(error.message || 'Payment failed. Please try again.')
     } finally {
       setLoading(null)
@@ -128,6 +161,7 @@ export default function PricingPage() {
             </h1>
             <a
               href="/"
+              onClick={() => analytics.trackEvent('pricing_back_to_home', { page: 'pricing' })}
               className="px-4 py-2 text-gray-600 hover:text-gray-900 font-medium"
             >
               ← Back to Home
@@ -153,6 +187,13 @@ export default function PricingPage() {
               className={`bg-white rounded-2xl shadow-xl p-8 relative transition-transform hover:scale-105 ${
                 plan.highlight ? 'ring-4 ring-blue-500' : ''
               }`}
+              onMouseEnter={() => {
+                // 🎯 Track plan card hover
+                analytics.trackEvent('pricing_plan_hover', {
+                  plan: plan.name,
+                  price: plan.priceAmount
+                })
+              }}
             >
               {plan.highlight && (
                 <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
@@ -181,7 +222,7 @@ export default function PricingPage() {
               </ul>
 
               <button
-                onClick={() => handleSubscribe(plan.priceId, plan.name)}
+                onClick={() => handleSubscribe(plan.priceId, plan.name, plan.priceAmount)}
                 disabled={loading === plan.name}
                 className={`w-full py-4 rounded-xl font-bold text-lg shadow-lg transition-all ${
                   plan.highlight
@@ -207,19 +248,31 @@ export default function PricingPage() {
         <div className="mt-20 text-center">
           <h3 className="text-2xl font-bold mb-8">Frequently Asked Questions</h3>
           <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto text-left">
-            <div className="bg-white rounded-xl p-6 shadow-md">
+            <div 
+              className="bg-white rounded-xl p-6 shadow-md hover:shadow-lg transition-shadow cursor-pointer"
+              onClick={() => analytics.trackEvent('faq_click', { question: 'cancel_anytime' })}
+            >
               <h4 className="font-bold text-lg mb-2">Can I cancel anytime?</h4>
               <p className="text-gray-600">Yes! No long-term contracts. Cancel from your dashboard anytime.</p>
             </div>
-            <div className="bg-white rounded-xl p-6 shadow-md">
+            <div 
+              className="bg-white rounded-xl p-6 shadow-md hover:shadow-lg transition-shadow cursor-pointer"
+              onClick={() => analytics.trackEvent('faq_click', { question: 'posts_rollover' })}
+            >
               <h4 className="font-bold text-lg mb-2">Do unused posts roll over?</h4>
               <p className="text-gray-600">Posts reset monthly. Upgrade for more posts or unlimited access.</p>
             </div>
-            <div className="bg-white rounded-xl p-6 shadow-md">
+            <div 
+              className="bg-white rounded-xl p-6 shadow-md hover:shadow-lg transition-shadow cursor-pointer"
+              onClick={() => analytics.trackEvent('faq_click', { question: 'payment_methods' })}
+            >
               <h4 className="font-bold text-lg mb-2">What payment methods accepted?</h4>
               <p className="text-gray-600">We accept all major credit cards via secure Stripe payments.</p>
             </div>
-            <div className="bg-white rounded-xl p-6 shadow-md">
+            <div 
+              className="bg-white rounded-xl p-6 shadow-md hover:shadow-lg transition-shadow cursor-pointer"
+              onClick={() => analytics.trackEvent('faq_click', { question: 'upgrade_plan' })}
+            >
               <h4 className="font-bold text-lg mb-2">Can I upgrade my plan?</h4>
               <p className="text-gray-600">Yes! Upgrade or downgrade anytime from your dashboard.</p>
             </div>

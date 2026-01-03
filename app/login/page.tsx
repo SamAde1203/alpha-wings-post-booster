@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
+import { analytics } from '@/lib/analytics'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -50,6 +51,9 @@ export default function LoginPage() {
           if (dbError && dbError.code !== '23505') { // Ignore duplicate key errors
             console.error('Database error:', dbError)
           }
+
+          // 🎯 Track successful signup
+          analytics.signup('email')
         }
 
         setMessage('✅ Account created! Check your email to confirm, then login.')
@@ -64,10 +68,16 @@ export default function LoginPage() {
         if (loginError) throw loginError
 
         if (data.user) {
+          // 🎯 Track successful login
+          analytics.login('email')
+          
           router.push('/dashboard')
         }
       }
     } catch (err: any) {
+      // 🎯 Track authentication errors
+      analytics.error('authentication', err.message || 'Unknown error', 'login_page')
+      
       setError(err.message || 'Something went wrong')
     } finally {
       setLoading(false)
@@ -86,7 +96,13 @@ export default function LoginPage() {
         <div className="bg-white rounded-2xl shadow-xl p-8">
           <div className="flex gap-2 mb-6">
             <button
-              onClick={() => { setMode('login'); setError(''); setMessage('') }}
+              onClick={() => { 
+                setMode('login'); 
+                setError(''); 
+                setMessage('');
+                // 🎯 Track mode switch
+                analytics.trackEvent('switch_auth_mode', { mode: 'login' });
+              }}
               className={`flex-1 py-2 px-4 rounded-lg font-medium transition-all ${
                 mode === 'login'
                   ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
@@ -96,7 +112,13 @@ export default function LoginPage() {
               Login
             </button>
             <button
-              onClick={() => { setMode('signup'); setError(''); setMessage('') }}
+              onClick={() => { 
+                setMode('signup'); 
+                setError(''); 
+                setMessage('');
+                // 🎯 Track mode switch
+                analytics.trackEvent('switch_auth_mode', { mode: 'signup' });
+              }}
               className={`flex-1 py-2 px-4 rounded-lg font-medium transition-all ${
                 mode === 'signup'
                   ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
@@ -159,7 +181,11 @@ export default function LoginPage() {
             <p className="text-sm text-gray-600">
               {mode === 'login' ? "Don't have an account? " : "Already have an account? "}
               <button
-                onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setError(''); setMessage('') }}
+                onClick={() => { 
+                  setMode(mode === 'login' ? 'signup' : 'login'); 
+                  setError(''); 
+                  setMessage('');
+                }}
                 className="text-blue-600 font-medium hover:underline"
               >
                 {mode === 'login' ? 'Sign up free' : 'Login here'}

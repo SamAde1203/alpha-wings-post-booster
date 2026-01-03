@@ -1,36 +1,50 @@
-// app/page.tsx - UPDATED WITH BETTER CONTRAST
+// app/page.tsx - UPDATED WITH ANALYTICS TRACKING
+'use client'
+
 import Link from 'next/link'
 import Image from "next/image"
 import { Check, X, Zap, DollarSign, Clock, Sparkles, Target, TrendingUp, Users } from 'lucide-react'
+import { analytics } from '@/lib/analytics'
+import { useEffect } from 'react'
 
 export default function HomePage() {
+  // Track landing page view
+  useEffect(() => {
+    analytics.trackEvent('view_landing_page', {
+      page: 'home',
+      timestamp: new Date().toISOString()
+    })
+  }, [])
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
       {/* Header */}
       <header className="border-b bg-white/80 backdrop-blur-sm fixed w-full z-50 shadow-sm">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <div className="flex items-center space-x-3">
-  <Image
-    src="/alpha-wings-ai-logo.png"
-    alt="Alpha Wings AI"
-    width={40}
-    height={40}
-    priority
-  />
-  <span className="text-xl md:text-2xl font-bold text-gray-900">
-    Alpha Wings Post Booster
-  </span>
-</div>
+            <Image
+              src="/alpha-wings-ai-logo.png"
+              alt="Alpha Wings AI"
+              width={40}
+              height={40}
+              priority
+            />
+            <span className="text-xl md:text-2xl font-bold text-gray-900">
+              Alpha Wings Post Booster
+            </span>
+          </div>
 
           <div className="flex items-center space-x-4">
             <Link 
               href="/login"
+              onClick={() => analytics.clickCTA('header_login', 'header')}
               className="text-gray-700 hover:text-gray-900 font-medium"
             >
               Login
             </Link>
             <Link 
-              href="/login" // Changed from /signup to /login since we use combined login/signup
+              href="/login"
+              onClick={() => analytics.clickCTA('header_get_started', 'header')}
               className="bg-blue-600 text-white px-4 md:px-6 py-2 rounded-lg hover:bg-blue-700 font-semibold transition-colors"
             >
               Get Started
@@ -61,6 +75,7 @@ export default function HomePage() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
             <Link 
               href="/pricing"
+              onClick={() => analytics.clickCTA('hero_view_pricing', 'hero_section')}
               className="bg-blue-600 text-white px-8 py-4 rounded-lg hover:bg-blue-700 font-bold text-lg inline-flex items-center justify-center shadow-lg hover:shadow-xl transition-all"
             >
               <DollarSign className="mr-2" />
@@ -68,6 +83,7 @@ export default function HomePage() {
             </Link>
             <Link 
               href="#demo"
+              onClick={() => analytics.clickCTA('hero_watch_demo', 'hero_section')}
               className="bg-white text-blue-600 px-8 py-4 rounded-lg hover:bg-gray-50 font-bold text-lg inline-flex items-center justify-center border-2 border-blue-600 transition-all"
             >
               Watch Demo
@@ -90,7 +106,6 @@ export default function HomePage() {
           </div>
         </div>
       </section>
-
 
       {/* Social Proof */}
       <section className="py-12 bg-white border-y border-gray-200">
@@ -116,12 +131,12 @@ export default function HomePage() {
           </p>
           
           <div className="grid md:grid-cols-2 gap-6">
-           {[
-  { tool: 'Buffer', price: '$864/year', issue: 'YOU still write all your posts manually' },
+            {[
+              { tool: 'Buffer', price: '$864/year', issue: 'YOU still write all your posts manually' },
               { tool: 'Hootsuite', price: '$2,988/year', issue: "For features you'll never use" },
-  { tool: 'Hypefury', price: '$1,188/year', issue: 'Only works on Twitter (seriously?)' },
-  { tool: 'Later', price: '$960/year', issue: 'Their AI features? Non-existent' },
-].map((item, i) => (
+              { tool: 'Hypefury', price: '$1,188/year', issue: 'Only works on Twitter (seriously?)' },
+              { tool: 'Later', price: '$960/year', issue: 'Their AI features? Non-existent' },
+            ].map((item, i) => (
               <div key={i} className="bg-white p-6 rounded-lg shadow-md border-l-4 border-red-500 hover:shadow-lg transition-shadow">
                 <div className="flex items-start">
                   <X className="h-6 w-6 text-red-600 mr-3 flex-shrink-0 mt-1" />
@@ -187,7 +202,8 @@ export default function HomePage() {
 
           <div className="text-center">
             <Link 
-              href="/checkout"
+              href="/pricing"
+              onClick={() => analytics.clickCTA('solution_start_creating', 'solution_section')}
               className="bg-blue-600 text-white px-8 py-4 rounded-lg hover:bg-blue-700 font-bold text-lg inline-flex items-center shadow-lg hover:shadow-xl transition-all"
             >
               Start Creating Better Content Now →
@@ -216,7 +232,7 @@ export default function HomePage() {
               '⚡ Bulk Scheduling',
               '🔄 Content Recycling',
               '📱 Mobile-Friendly Dashboard',
-              '💰 One-Time Payment'
+              '💰 Flexible Pricing'
             ].map((feature, i) => (
               <div key={i} className="bg-white p-4 rounded-lg shadow-md flex items-start hover:shadow-lg transition-shadow border border-gray-200">
                 <Check className="h-6 w-6 text-green-600 mr-3 flex-shrink-0 mt-0.5" />
@@ -276,7 +292,7 @@ export default function HomePage() {
                   <tr className="bg-green-50 border-t-2 border-green-600">
                     <td className="px-6 py-4 font-bold text-green-800">Post Booster</td>
                     <td className="px-6 py-4 text-right font-bold text-green-800">$9.99-$99.99/mo</td>
-                   <td className="px-6 py-4 text-right font-bold text-green-800 text-xl">From $9.99 ✓</td>
+                    <td className="px-6 py-4 text-right font-bold text-green-800 text-xl">From $9.99 ✓</td>
                     <td className="px-6 py-4 text-right font-bold text-green-800">—</td>
                   </tr>
                 </tbody>
@@ -305,7 +321,8 @@ export default function HomePage() {
             Join smart entrepreneurs who are saving thousands per year while posting better content.
           </p>
           <Link 
-            href="/checkout"
+            href="/pricing"
+            onClick={() => analytics.clickCTA('cta_main', 'cta_section')}
             className="bg-white text-blue-600 px-8 py-4 rounded-lg hover:bg-gray-100 font-bold text-lg inline-block shadow-lg hover:shadow-xl transition-all"
           >
             View Pricing Plans →
@@ -327,7 +344,7 @@ export default function HomePage() {
             {[
               {
                 q: 'What plans are available?',
-               a: 'We offer 4 plans: Free (5 posts/month), Starter ($9.99/mo - 50 posts), Pro ($29.99/mo - unlimited), and Enterprise ($99.99/mo - teams). All paid plans include AI generation, multi-platform posting, and analytics.'
+                a: 'We offer 4 plans: Free (5 posts/month), Starter ($9.99/mo - 50 posts), Pro ($29.99/mo - unlimited), and Enterprise ($99.99/mo - teams). All paid plans include AI generation, multi-platform posting, and analytics.'
               },
               {
                 q: 'Which platforms does it support?',
@@ -358,7 +375,8 @@ export default function HomePage() {
             Ready to Stop Paying Subscriptions?
           </h3>
           <Link 
-            href="/checkout"
+            href="/login"
+            onClick={() => analytics.clickCTA('final_get_started', 'final_cta_section')}
             className="bg-blue-600 text-white px-8 py-4 rounded-lg hover:bg-blue-700 font-bold text-lg inline-flex items-center shadow-lg hover:shadow-xl transition-all"
           >
             <DollarSign className="mr-2" />
@@ -367,72 +385,95 @@ export default function HomePage() {
         </div>
       </section>
 
-             {/* Footer */}
-        <footer className="bg-gray-900 text-white py-12">
-          <div className="max-w-6xl mx-auto px-6">
-            <div className="grid md:grid-cols-4 gap-8 mb-8">
-              {/* Company Info */}
-              <div>
-                <h3 className="text-2xl font-bold mb-4 bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                  Alpha Wings AI
-                </h3>
-                <p className="text-gray-400 mb-4">
-                  AI-powered social media content generation for the modern creator.
-                </p>
-                <div className="flex gap-3">
-                  <a href="https://twitter.com/alphawingsai" className="text-2xl hover:text-blue-400 transition-colors">🐦</a>
-                  <a href="https://linkedin.com/company/alphawingsai" className="text-2xl hover:text-blue-400 transition-colors">💼</a>
-                  <a href="https://facebook.com/alphawingsai" className="text-2xl hover:text-blue-400 transition-colors">📘</a>
-                  <a href="https://instagram.com/alphawingsai" className="text-2xl hover:text-blue-400 transition-colors">📸</a>
-                </div>
-              </div>
-
-              {/* Product */}
-              <div>
-                <h4 className="font-bold mb-4 text-lg">Product</h4>
-                <ul className="space-y-2 text-gray-400">
-                  <li><a href="/dashboard" className="hover:text-white transition-colors">Dashboard</a></li>
-                  <li><a href="/schedule" className="hover:text-white transition-colors">Schedule Posts</a></li>
-                  <li><a href="/pricing" className="hover:text-white transition-colors">Pricing</a></li>
-                  <li><a href="/faq" className="hover:text-white transition-colors">FAQ</a></li>
-                </ul>
-              </div>
-
-              {/* Company */}
-              <div>
-                <h4 className="font-bold mb-4 text-lg">Company</h4>
-                <ul className="space-y-2 text-gray-400">
-                  <li><a href="/about" className="hover:text-white transition-colors">About Us</a></li>
-                  <li><a href="/contact" className="hover:text-white transition-colors">Contact</a></li>
-                  <li><a href="mailto:hello@alphawingsai.com" className="hover:text-white transition-colors">Email Us</a></li>
-                  <li><a href="mailto:hello@alphawingsai.com" className="hover:text-white transition-colors">Support</a></li>
-                </ul>
-              </div>
-
-              {/* Legal */}
-              <div>
-                <h4 className="font-bold mb-4 text-lg">Legal</h4>
-                <ul className="space-y-2 text-gray-400">
-                  <li><a href="/privacy" className="hover:text-white transition-colors">Privacy Policy</a></li>
-                  <li><a href="/terms" className="hover:text-white transition-colors">Terms of Service</a></li>
-                  <li><a href="/cookies" className="hover:text-white transition-colors">Cookie Policy</a></li>
-                  <li><a href="/gdpr" className="hover:text-white transition-colors">GDPR</a></li>
-                </ul>
+      {/* Footer */}
+      <footer className="bg-gray-900 text-white py-12">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="grid md:grid-cols-4 gap-8 mb-8">
+            {/* Company Info */}
+            <div>
+              <h3 className="text-2xl font-bold mb-4 bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+                Alpha Wings AI
+              </h3>
+              <p className="text-gray-400 mb-4">
+                AI-powered social media content generation for the modern creator.
+              </p>
+              <div className="flex gap-3">
+                <a 
+                  href="https://twitter.com/alphawingsai" 
+                  onClick={() => analytics.clickCTA('footer_twitter', 'footer')}
+                  className="text-2xl hover:text-blue-400 transition-colors"
+                >
+                  🐦
+                </a>
+                <a 
+                  href="https://linkedin.com/company/alphawingsai" 
+                  onClick={() => analytics.clickCTA('footer_linkedin', 'footer')}
+                  className="text-2xl hover:text-blue-400 transition-colors"
+                >
+                  💼
+                </a>
+                <a 
+                  href="https://facebook.com/alphawingsai" 
+                  onClick={() => analytics.clickCTA('footer_facebook', 'footer')}
+                  className="text-2xl hover:text-blue-400 transition-colors"
+                >
+                  📘
+                </a>
+                <a 
+                  href="https://instagram.com/alphawingsai" 
+                  onClick={() => analytics.clickCTA('footer_instagram', 'footer')}
+                  className="text-2xl hover:text-blue-400 transition-colors"
+                >
+                  📸
+                </a>
               </div>
             </div>
 
-            {/* Bottom Bar */}
-            <div className="border-t border-gray-800 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
-              <p className="text-gray-400 text-sm">
-                © 2026 Alpha Wings AI. All rights reserved.
-              </p>
-              <p className="text-gray-400 text-sm">
-                Built with ❤️ by <a href="https://apexdigitalafrica.com" className="text-blue-400 hover:text-blue-300">Apex Digital Africa</a>
-              </p>
+            {/* Product */}
+            <div>
+              <h4 className="font-bold mb-4 text-lg">Product</h4>
+              <ul className="space-y-2 text-gray-400">
+                <li><a href="/dashboard" className="hover:text-white transition-colors">Dashboard</a></li>
+                <li><a href="/schedule" className="hover:text-white transition-colors">Schedule Posts</a></li>
+                <li><a href="/pricing" className="hover:text-white transition-colors">Pricing</a></li>
+                <li><a href="/faq" className="hover:text-white transition-colors">FAQ</a></li>
+              </ul>
+            </div>
+
+            {/* Company */}
+            <div>
+              <h4 className="font-bold mb-4 text-lg">Company</h4>
+              <ul className="space-y-2 text-gray-400">
+                <li><a href="/about" className="hover:text-white transition-colors">About Us</a></li>
+                <li><a href="/contact" className="hover:text-white transition-colors">Contact</a></li>
+                <li><a href="mailto:hello@alphawingsai.com" className="hover:text-white transition-colors">Email Us</a></li>
+                <li><a href="mailto:hello@alphawingsai.com" className="hover:text-white transition-colors">Support</a></li>
+              </ul>
+            </div>
+
+            {/* Legal */}
+            <div>
+              <h4 className="font-bold mb-4 text-lg">Legal</h4>
+              <ul className="space-y-2 text-gray-400">
+                <li><a href="/privacy" className="hover:text-white transition-colors">Privacy Policy</a></li>
+                <li><a href="/terms" className="hover:text-white transition-colors">Terms of Service</a></li>
+                <li><a href="/cookies" className="hover:text-white transition-colors">Cookie Policy</a></li>
+                <li><a href="/gdpr" className="hover:text-white transition-colors">GDPR</a></li>
+              </ul>
             </div>
           </div>
-        </footer>
 
+          {/* Bottom Bar */}
+          <div className="border-t border-gray-800 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
+            <p className="text-gray-400 text-sm">
+              © 2026 Alpha Wings AI. All rights reserved.
+            </p>
+            <p className="text-gray-400 text-sm">
+              Built with ❤️ by <a href="https://apexdigitalafrica.com" className="text-blue-400 hover:text-blue-300">Apex Digital Africa</a>
+            </p>
+          </div>
+        </div>
+      </footer>
     </div>
   )
 }
