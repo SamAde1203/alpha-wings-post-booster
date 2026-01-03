@@ -1,14 +1,15 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
+import { useRouter } from 'next/navigation'
 import Navigation from '@/components/Navigation'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 )
+
 export default function Dashboard() {
   const router = useRouter()
   const [userId, setUserId] = useState<string | null>(null)
@@ -20,66 +21,46 @@ export default function Dashboard() {
   const [error, setError] = useState('')
   const [postsRemaining, setPostsRemaining] = useState(5)
   const [user, setUser] = useState<any>(null)
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    getCurrentUser()
+    checkAuth()
   }, [])
 
-  async function getCurrentUser() {
-  try {
-    // Get the session from Supabase
-    const { data } = await supabase.auth.getSession()
+  async function checkAuth() {
+    try {
+      // Get current session
+      const { data } = await supabase.auth.getSession()
 
-    if (!data.session?.access_token) {
-      router.push('/login')
-      return
-    }
-
-    // Send token to API
-    const res = await fetch('/api/auth/me', {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${data.session.access_token}`
+      if (!data.session?.user?.id) {
+        router.push('/login')
+        return
       }
-    })
 
-    const responseData = await res.json()
-
-    if (!res.ok || !responseData.userId) {
+      const userId = data.session.user.id
+      setUserId(userId)
+      await loadUserData(userId)
+    } catch (err) {
+      console.error('Auth error:', err)
       router.push('/login')
-      return
+    } finally {
+      setIsLoading(false)
     }
-
-    setUserId(responseData.userId)
-  } catch (err) {
-    console.error('Error getting current user:', err)
-    router.push('/login')
   }
-}
 
-
-  useEffect(() => {
-    if (userId) {
-      loadUserData()
-    }
-  }, [userId])
-
-  async function loadUserData() {
-    if (!userId) return
-
+  async function loadUserData(userId: string) {
     const { data } = await supabase
       .from('users')
       .select('*')
       .eq('id', userId)
       .single()
-    
+
     if (data) {
       setUser(data)
       setPostsRemaining(data.posts_limit - data.posts_this_month)
     }
   }
-  // Helper function to get tier display info
+
   function getTierInfo() {
     if (!user) return { name: 'FREE', limit: 5, icon: '🎁' }
 
@@ -106,6 +87,8 @@ export default function Dashboard() {
       return
     }
 
+    if (!userId) return
+
     setLoading(true)
     setError('')
     setPosts([])
@@ -123,6 +106,7 @@ export default function Dashboard() {
 
       setPosts(data.posts)
       setPostsRemaining(data.postsRemaining)
+      await loadUserData(userId) // Reload user data
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -133,6 +117,14 @@ export default function Dashboard() {
   function copyPost(content: string) {
     navigator.clipboard.writeText(content)
     alert('✅ Copied to clipboard!')
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex items-center justify-center">
+        <div className="text-2xl font-bold text-gray-700">Loading your dashboard...</div>
+      </div>
+    )
   }
 
   return (
@@ -288,16 +280,6 @@ export default function Dashboard() {
             {error && (
               <div className="p-4 bg-red-50 border-2 border-red-200 rounded-xl text-red-700">
                 <div className="font-bold mb-1">⚠️ {error}</div>
-                {error.includes('Limit reached') && (
-                  <div className="text-sm mt-2">
-                    <p>You've used all your posts for this month! 🎉</p>
-                    <p className="mt-1">
-                      <a href="/pricing" className="text-red-600 font-bold underline">
-                        Upgrade now
-                      </a> to continue generating amazing content!
-                    </p>
-                  </div>
-                )}
               </div>
             )}
 
