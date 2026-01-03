@@ -32,7 +32,7 @@ export default function UsageAlertEmail({
   return (
     <Html>
       <Head />
-      <Preview>⚠️ You've used {percentageUsed}% of your monthly posts!</Preview>
+      <Preview>{`⚠️ You've used ${percentageUsed}% of your monthly posts!`}</Preview>
       <Body style={main}>
         <Container style={container}>
           <Section style={header}>
@@ -53,6 +53,10 @@ export default function UsageAlertEmail({
             <Text style={statValueWarning}>{postsRemaining} posts</Text>
           </Section>
 
+          <Text style={text}>
+            You've used <strong>{percentageUsed}%</strong> of your monthly limit. Don't let this slow down your content creation!
+          </Text>
+
           <Section style={buttonContainer}>
             <Button style={button} href={upgradeUrl}>
               Upgrade Now →
@@ -60,6 +64,17 @@ export default function UsageAlertEmail({
           </Section>
 
           <Hr style={hr} />
+
+          <Text style={footer}>
+            <strong>Upgrade Options:</strong><br />
+            • <strong>Starter:</strong> $9.99/mo - 50 posts<br />
+            • <strong>Pro:</strong> $29.99/mo - 200 posts<br />
+            • <strong>Agency:</strong> $99.99/mo - Unlimited posts
+          </Text>
+
+          <Text style={footer}>
+            Your limit resets on the 1st of next month.
+          </Text>
 
           <Text style={footer}>
             Questions? <Link href="mailto:hello@alphawingsai.com" style={link}>Contact Support</Link>
