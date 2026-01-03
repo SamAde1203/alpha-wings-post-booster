@@ -18,6 +18,12 @@ function getSupabaseClient() {
 
 // Map Stripe price IDs to subscription tiers
 const PRICE_TIER_MAP: Record<string, { tier: string; limit: number }> = {
+  // TEST MODE PRICES
+  'price_1SlWynCsaEmlzaAVoO4hiyyR': { tier: 'starter', limit: 50 },
+  'price_1SlX0UCsaEmlzaAV8g7LOIE9': { tier: 'pro', limit: 200 },
+  'price_1SlX1BCsaEmlzaAVFL5YZIiT': { tier: 'agency', limit: 999999 },
+
+  // LIVE MODE PRICES (for production)
   'price_1SlDhaCsaEmlzaAVHU6w35Ht': { tier: 'starter', limit: 50 },
   'price_1SlDj0CsaEmlzaAVozGhgYC7': { tier: 'pro', limit: 200 },
   'price_1SlDk9CsaEmlzaAVbEO1lJKJ': { tier: 'agency', limit: 999999 },
@@ -86,7 +92,7 @@ export async function POST(request: NextRequest) {
           break
         }
 
-        console.log(`✅ User ${userId} upgraded to ${tierInfo.tier}`)
+        console.log(`✅ User ${userId} upgraded to ${tierInfo.tier} (limit: ${tierInfo.limit} posts)`)
       } catch (err: any) {
         console.error(`❌ Error processing checkout: ${err.message}`)
       }
@@ -133,7 +139,7 @@ export async function POST(request: NextRequest) {
           break
         }
 
-        console.log(`✅ Subscription updated for user ${user.id} → ${tierInfo.tier}`)
+        console.log(`✅ Subscription updated for user ${user.id} → ${tierInfo.tier} (limit: ${tierInfo.limit} posts)`)
       } catch (err: any) {
         console.error(`❌ Error processing subscription update: ${err.message}`)
       }
@@ -174,7 +180,7 @@ export async function POST(request: NextRequest) {
           break
         }
 
-        console.log(`✅ User ${user.id} downgraded to free`)
+        console.log(`✅ User ${user.id} downgraded to free (limit: 5 posts)`)
       } catch (err: any) {
         console.error(`❌ Error processing subscription deletion: ${err.message}`)
       }
@@ -220,7 +226,7 @@ export async function POST(request: NextRequest) {
           created_at: new Date().toISOString(),
         })
 
-        console.log(`💰 Payment succeeded for user ${user.id}`)
+        console.log(`💰 Payment succeeded for user ${user.id} - Amount: $${invoice.amount_paid ? (invoice.amount_paid / 100).toFixed(2) : '0.00'}`)
       } catch (err: any) {
         console.error(`❌ Error processing payment succeeded: ${err.message}`)
       }
