@@ -4,15 +4,13 @@ export const analytics = {
   track: (event: string, properties?: Record<string, any>) => {
     if (typeof window !== 'undefined') {
       console.log('📊 Analytics:', event, properties)
-      // Add your analytics provider here (Google Analytics, Mixpanel, etc.)
     }
   },
   
-  // Alias for track (for compatibility)
+  // Alias for track
   trackEvent: (event: string, properties?: Record<string, any>) => {
     if (typeof window !== 'undefined') {
       console.log('📊 Analytics:', event, properties)
-      // Add your analytics provider here
     }
   },
   
@@ -91,5 +89,9 @@ export const analytics = {
   // CTA tracking
   clickCTA: (ctaName: string, location: string) => {
     analytics.track('cta_clicked', { ctaName, location })
+  },
+  
+  clickPricingPlan: (planName: string, priceAmount: number) => {
+    analytics.track('pricing_plan_clicked', { planName, priceAmount })
   },
 }
