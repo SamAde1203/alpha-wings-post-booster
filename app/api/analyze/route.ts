@@ -57,7 +57,7 @@ Provide analysis in JSON format:
     const metrics = {
       character_count: content.length,
       word_count: content.split(/\s+/).length,
-      sentence_count: content.split(/[.!?]+/).filter(s => s.trim()).length,
+      sentence_count: content.split(/[.!?]+/).filter((s: string) => s.trim()).length,
       emoji_count: (content.match(/[\u{1F300}-\u{1F9FF}]/gu) || []).length,
       hashtag_count: (content.match(/#\w+/g) || []).length,
       mention_count: (content.match(/@\w+/g) || []).length,

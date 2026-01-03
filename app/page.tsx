@@ -140,7 +140,7 @@ export default function HomePage() {
         <div className="container mx-auto max-w-6xl px-4">
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-              The AI-Powered Social Media Tool That Actually Creates Your Content
+              The AI-Powered Social Media Tool That Actually Creates Your Content.
             </h2>
             <p className="text-xl text-gray-700 max-w-3xl mx-auto">
               Post Booster doesn't just schedule your posts.<br />
@@ -267,8 +267,8 @@ export default function HomePage() {
                   </tr>
                   <tr className="bg-green-50 border-t-2 border-green-600">
                     <td className="px-6 py-4 font-bold text-green-800">Post Booster</td>
-                    <td className="px-6 py-4 text-right font-bold text-green-800">$97</td>
-                    <td className="px-6 py-4 text-right font-bold text-green-800 text-xl">$97 ✅</td>
+                    <td className="px-6 py-4 text-right font-bold text-green-800">$9.99-$99.99/mo</td>
+                   <td className="px-6 py-4 text-right font-bold text-green-800 text-xl">From $9.99 ✓</td>
                     <td className="px-6 py-4 text-right font-bold text-green-800">—</td>
                   </tr>
                 </tbody>
@@ -300,7 +300,7 @@ export default function HomePage() {
             href="/checkout"
             className="bg-white text-blue-600 px-8 py-4 rounded-lg hover:bg-gray-100 font-bold text-lg inline-block shadow-lg hover:shadow-xl transition-all"
           >
-            Get Alpha Wings Post Booster for $97 →
+            View Pricing Plans →
           </Link>
           <p className="mt-6 text-white opacity-95">
             ✅ 30-Day Money-Back Guarantee | ✅ No Monthly Fees | ✅ Own It Forever
@@ -318,8 +318,8 @@ export default function HomePage() {
           <div className="space-y-6">
             {[
               {
-                q: 'Is this really a one-time payment? No hidden fees?',
-                a: 'Yes. $97 once. You own it forever. No monthly fees, no hidden charges, no "premium" upgrades required.'
+                q: 'What plans are available?',
+               a: 'We offer 4 plans: Free (5 posts/month), Starter ($9.99/mo - 50 posts), Pro ($29.99/mo - unlimited), and Enterprise ($99.99/mo - teams). All paid plans include AI generation, multi-platform posting, and analytics.'
               },
               {
                 q: 'Which platforms does it support?',
@@ -354,7 +354,7 @@ export default function HomePage() {
             className="bg-blue-600 text-white px-8 py-4 rounded-lg hover:bg-blue-700 font-bold text-lg inline-flex items-center shadow-lg hover:shadow-xl transition-all"
           >
             <DollarSign className="mr-2" />
-            Get Started for $97 (One-Time)
+            Get Started Free
           </Link>
         </div>
       </section>
