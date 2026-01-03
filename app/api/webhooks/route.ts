@@ -9,6 +9,13 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 )
 
+// Map Stripe price IDs to subscription tiers
+const PRICE_TIER_MAP: Record<string, { tier: string; limit: number }> = {
+  'price_1SlDhaCsaEmlzaAVHU6w35Ht': { tier: 'starter', limit: 50 },
+  'price_1SlDj0CsaEmlzaAVozGhgYC7': { tier: 'pro', limit: 200 },
+  'price_1SlDk9CsaEmlzaAVbEO1lJKJ': { tier: 'agency', limit: 999999 },
+}
+
 export async function POST(request: NextRequest) {
   const body = await request.text()
   const signature = request.headers.get('stripe-signature') || ''
@@ -22,7 +29,7 @@ export async function POST(request: NextRequest) {
       process.env.STRIPE_WEBHOOK_SECRET || ''
     )
   } catch (err: any) {
-    console.error('Webhook signature verification failed:', err.message)
+    console.error('❌ Webhook signature verification failed:', err.message)
     return NextResponse.json({ error: 'Webhook error' }, { status: 400 })
   }
 
@@ -33,116 +40,134 @@ export async function POST(request: NextRequest) {
       const userId = session.client_reference_id || session.metadata?.userId
 
       if (!userId) {
-        console.error('No user ID in session')
+        console.error('❌ No user ID in session')
         break
       }
 
-      // Get subscription details
-      const subscriptionId = session.subscription as string
-      const subscription = await stripe.subscriptions.retrieve(subscriptionId)
-      const priceId = subscription.items.data[0].price.id
+      try {
+        // Get subscription details
+        const subscriptionId = session.subscription as string
+        const subscription = await stripe.subscriptions.retrieve(subscriptionId)
+        const priceId = subscription.items.data[0].price.id
 
-      // Map price ID to tier and limits
-      let tier = 'free'
-      let postsLimit = 5
+        // Map price ID to tier
+        const tierInfo = PRICE_TIER_MAP[priceId]
+        if (!tierInfo) {
+          console.error(`⚠️ Unknown price ID: ${priceId}`)
+          break
+        }
 
-      // YOU'LL REPLACE THESE WITH YOUR ACTUAL PRICE IDs FROM STRIPE
-      if (priceId === 'prod_Tif1COawB532U0') {
-        tier = 'starter'
-        postsLimit = 50
-      } else if (priceId === 'prod_Tif3GcKj45bDgP') {
-        tier = 'pro'
-        postsLimit = 200
-      } else if (priceId === 'prod_Tif4mCiLCXIlJW') {
-        tier = 'agency'
-        postsLimit = 999999
+        // Update user in database
+        const { error } = await supabase
+          .from('users')
+          .update({
+            subscription_tier: tierInfo.tier,
+            subscription_status: 'active',
+            posts_limit: tierInfo.limit,
+            stripe_customer_id: session.customer as string,
+            stripe_subscription_id: subscriptionId,
+          })
+          .eq('id', userId)
+
+        if (error) {
+          console.error(`❌ Database error: ${error.message}`)
+          break
+        }
+
+        console.log(`✅ User ${userId} upgraded to ${tierInfo.tier}`)
+      } catch (err: any) {
+        console.error(`❌ Error processing checkout: ${err.message}`)
       }
-
-      // Update user in database
-      await supabase
-        .from('users')
-        .update({
-          subscription_tier: tier,
-          subscription_status: 'active',
-          posts_limit: postsLimit,
-          stripe_customer_id: session.customer as string,
-          stripe_subscription_id: subscriptionId,
-        })
-        .eq('id', userId)
-
-      console.log(`✅ User ${userId} upgraded to ${tier}`)
       break
     }
 
     case 'customer.subscription.updated': {
-      const subscription = event.data.object as Stripe.Subscription
-      const customerId = subscription.customer as string
+      try {
+        const subscription = event.data.object as Stripe.Subscription
+        const customerId = subscription.customer as string
 
-      // Find user by Stripe customer ID
-      const { data: user } = await supabase
-        .from('users')
-        .select('id')
-        .eq('stripe_customer_id', customerId)
-        .single()
+        // Find user by Stripe customer ID
+        const { data: users, error: queryError } = await supabase
+          .from('users')
+          .select('id')
+          .eq('stripe_customer_id', customerId)
 
-      if (!user) break
+        if (queryError || !users || users.length === 0) {
+          console.error(`⚠️ User not found for customer: ${customerId}`)
+          break
+        }
 
-      const priceId = subscription.items.data[0].price.id
-      let tier = 'free'
-      let postsLimit = 5
+        const user = users[0]
+        const priceId = subscription.items.data[0].price.id
+        const tierInfo = PRICE_TIER_MAP[priceId]
 
-      if (priceId === 'price_YOUR_STARTER_ID') {
-        tier = 'starter'
-        postsLimit = 50
-      } else if (priceId === 'price_YOUR_PRO_ID') {
-        tier = 'pro'
-        postsLimit = 200
-      } else if (priceId === 'price_YOUR_AGENCY_ID') {
-        tier = 'agency'
-        postsLimit = 999999
+        if (!tierInfo) {
+          console.error(`⚠️ Unknown price ID: ${priceId}`)
+          break
+        }
+
+        const { error } = await supabase
+          .from('users')
+          .update({
+            subscription_tier: tierInfo.tier,
+            subscription_status: subscription.status as string,
+            posts_limit: tierInfo.limit,
+          })
+          .eq('id', user.id)
+
+        if (error) {
+          console.error(`❌ Database error: ${error.message}`)
+          break
+        }
+
+        console.log(`✅ Subscription updated for user ${user.id} → ${tierInfo.tier}`)
+      } catch (err: any) {
+        console.error(`❌ Error processing subscription update: ${err.message}`)
       }
-
-      await supabase
-        .from('users')
-        .update({
-          subscription_tier: tier,
-          subscription_status: subscription.status,
-          posts_limit: postsLimit,
-        })
-        .eq('id', user.id)
-
-      console.log(`✅ Subscription updated for user ${user.id}`)
       break
     }
 
     case 'customer.subscription.deleted': {
-      const subscription = event.data.object as Stripe.Subscription
-      const customerId = subscription.customer as string
+      try {
+        const subscription = event.data.object as Stripe.Subscription
+        const customerId = subscription.customer as string
 
-      const { data: user } = await supabase
-        .from('users')
-        .select('id')
-        .eq('stripe_customer_id', customerId)
-        .single()
+        const { data: users, error: queryError } = await supabase
+          .from('users')
+          .select('id')
+          .eq('stripe_customer_id', customerId)
 
-      if (!user) break
+        if (queryError || !users || users.length === 0) {
+          console.error(`⚠️ User not found for customer: ${customerId}`)
+          break
+        }
 
-      // Downgrade to free tier
-      await supabase
-        .from('users')
-        .update({
-          subscription_tier: 'free',
-          subscription_status: 'canceled',
-          posts_limit: 5,
-        })
-        .eq('id', user.id)
+        const user = users[0]
 
-      console.log(`✅ User ${user.id} downgraded to free`)
+        // Downgrade to free tier
+        const { error } = await supabase
+          .from('users')
+          .update({
+            subscription_tier: 'free',
+            subscription_status: 'canceled',
+            posts_limit: 5,
+          })
+          .eq('id', user.id)
+
+        if (error) {
+          console.error(`❌ Database error: ${error.message}`)
+          break
+        }
+
+        console.log(`✅ User ${user.id} downgraded to free`)
+      } catch (err: any) {
+        console.error(`❌ Error processing subscription deletion: ${err.message}`)
+      }
       break
     }
 
     default:
-      console.log(`Unhandled event type: ${event.type}`)
+      console.log(`⏭️ Unhandled event type: ${event.type}`)
   }
 
   return NextResponse.json({ received: true })
