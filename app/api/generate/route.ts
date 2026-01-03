@@ -1,14 +1,22 @@
-// app/api/generate/route.ts - OpenAI Version
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-)
+// Function to get Supabase client - only created at runtime
+function getSupabaseClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (!url || !key) {
+    throw new Error('Missing Supabase credentials')
+  }
+
+  return createClient(url, key)
+}
 
 export async function POST(request: NextRequest) {
   try {
+    const supabase = getSupabaseClient()
+
     const { userId, topic, platform, tone, variationCount = 3 } = await request.json()
 
     // Validate input
@@ -21,7 +29,7 @@ export async function POST(request: NextRequest) {
       .select('*')
       .eq('id', userId)
       .single()
-    
+
     if (userError || !user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
@@ -29,7 +37,7 @@ export async function POST(request: NextRequest) {
     // Check post limits
     const isSuperAdmin = user.posts_limit > 10000
     if (!isSuperAdmin && user.posts_this_month >= user.posts_limit) {
-      return NextResponse.json({ 
+      return NextResponse.json({
         error: `Monthly post limit reached. You've used ${user.posts_this_month}/${user.posts_limit} posts this month.`
       }, { status: 403 })
     }
@@ -53,7 +61,7 @@ export async function POST(request: NextRequest) {
     for (const post of finalPosts) {
       const characterCount = post.content?.length || 0
       const wordCount = post.content?.split(/\s+/).length || 0
-      
+
       const { data, error } = await supabase
         .from('generated_posts')
         .insert({
@@ -88,7 +96,7 @@ export async function POST(request: NextRequest) {
       console.error('Error updating user:', updateError)
     }
 
-    const postsRemaining = isSuperAdmin 
+    const postsRemaining = isSuperAdmin
       ? user.posts_limit
       : Math.max(0, user.posts_limit - (user.posts_this_month + 1))
 
@@ -102,13 +110,13 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error('🔴 API Error:', error.message)
     return NextResponse.json(
-      { error: error.message || 'Internal server error' }, 
+      { error: error.message || 'Internal server error' },
       { status: 500 }
     )
   }
 }
 
-// OpenAI Generation Function (Fixed)
+// OpenAI Generation Function
 async function generateWithOpenAI(topic: string, platform: string, tone: string, variationCount: number) {
   try {
     const { default: OpenAI } = await import('openai')
@@ -146,7 +154,7 @@ Return ONLY a JSON array like this:
 
     const text = completion.choices[0]?.message?.content || '[]'
     console.log('📝 OpenAI response received')
-    
+
     // Clean and parse the response
     const cleaned = text
       .replace(/```json\s*/g, '')
@@ -157,7 +165,7 @@ Return ONLY a JSON array like this:
 
     try {
       const parsed = JSON.parse(cleaned)
-      
+
       if (Array.isArray(parsed)) {
         console.log('✅ Successfully parsed OpenAI response')
         return parsed.map((post: any) => ({
@@ -166,10 +174,10 @@ Return ONLY a JSON array like this:
         }))
       }
       throw new Error('Response is not an array')
-      
+
     } catch (parseError) {
       console.error('❌ Failed to parse OpenAI response:', parseError)
-      
+
       // Try to extract JSON from text
       const jsonMatch = text.match(/\[[\s\S]*\]/)
       if (jsonMatch) {
@@ -186,15 +194,15 @@ Return ONLY a JSON array like this:
           console.error('❌ Even extraction failed:', e)
         }
       }
-      
+
       // If all parsing fails, create from text
       console.log('🔄 Creating posts from raw text')
-      const lines = text.split('\n').filter(line => 
-        line.trim().length > 50 && 
+      const lines = text.split('\n').filter(line =>
+        line.trim().length > 50 &&
         !line.includes('```') &&
         !line.includes('JSON')
       )
-      
+
       return lines.slice(0, variationCount).map((line, i) => ({
         content: line.trim(),
         quality_score: 8.0 + (Math.random() * 0.5) // 8.0-8.5
@@ -211,7 +219,7 @@ Return ONLY a JSON array like this:
 // Fallback Generation Function
 function generateFallbackPosts(topic: string, platform: string, tone: string, variationCount: number) {
   console.log('🔄 Using fallback generation')
-  
+
   const posts = []
   const platformEmojis: Record<string, string> = {
     linkedin: '💼',
@@ -219,27 +227,27 @@ function generateFallbackPosts(topic: string, platform: string, tone: string, va
     facebook: '👥',
     instagram: '📸'
   }
-  
+
   const emoji = platformEmojis[platform] || '🚀'
 
   for (let i = 0; i < variationCount; i++) {
     const templates = [
       `${emoji} ${tone} insight: ${topic}\n\nImportant perspective for ${platform} professionals.\n\nShare your thoughts below! 👇\n\n#${topic.replace(/\s+/g, '')} #${platform}`,
-      
+
       `🌟 ${topic.toUpperCase()} on ${platform.toUpperCase()}\n\n${tone === 'professional' ? 'Professional analysis' : tone} on this key topic.\n\nJoin the conversation! 💬\n\n#${platform} #ThoughtLeadership`,
-      
+
       `💭 ${tone} reflection on ${topic}\n\nHow does this impact our future?\n\nLet's discuss! 🔗\n\n#${topic.split(' ').join('')} #FutureTrends`
     ]
 
     const content = templates[i % templates.length]
     const qualityScore = 7.5 + (Math.random() * 0.5) // 7.5-8.0
-    
+
     posts.push({
       content,
       quality_score: parseFloat(qualityScore.toFixed(1))
     })
   }
-  
+
   console.log(`📝 Generated ${posts.length} fallback posts`)
   return posts
 }
