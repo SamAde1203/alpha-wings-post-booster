@@ -54,9 +54,29 @@ export default function LoginPage() {
 
           // 🎯 Track successful signup
           analytics.signup('email')
+
+          // 📧 Send welcome email (don't fail signup if email fails)
+          try {
+            await fetch('/api/send-email', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                type: 'welcome',
+                to: email,
+                data: {
+                  userName: email.split('@')[0], // Use part before @ as name
+                  dashboardUrl: `${window.location.origin}/dashboard`
+                }
+              })
+            })
+            console.log('✅ Welcome email sent successfully')
+          } catch (emailError) {
+            // Don't fail signup if email fails
+            console.error('⚠️ Welcome email failed (non-critical):', emailError)
+          }
         }
 
-        setMessage('✅ Account created! Check your email to confirm, then login.')
+        setMessage('✅ Account created! Check your email for a welcome message, then login.')
         setMode('login')
       } else {
         // Login
