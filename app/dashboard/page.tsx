@@ -26,25 +26,38 @@ export default function Dashboard() {
   }, [])
 
   async function getCurrentUser() {
-    try {
-      const res = await fetch('/api/auth/me', {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' }
-      })
+  try {
+    // Get the session from Supabase
+    const { data } = await supabase.auth.getSession()
 
-      const data = await res.json()
-
-      if (!res.ok || !data.userId) {
-        router.push('/login')
-        return
-      }
-
-      setUserId(data.userId)
-    } catch (err) {
-      console.error('Error getting current user:', err)
+    if (!data.session?.access_token) {
       router.push('/login')
+      return
     }
+
+    // Send token to API
+    const res = await fetch('/api/auth/me', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${data.session.access_token}`
+      }
+    })
+
+    const responseData = await res.json()
+
+    if (!res.ok || !responseData.userId) {
+      router.push('/login')
+      return
+    }
+
+    setUserId(responseData.userId)
+  } catch (err) {
+    console.error('Error getting current user:', err)
+    router.push('/login')
   }
+}
+
 
   useEffect(() => {
     if (userId) {
