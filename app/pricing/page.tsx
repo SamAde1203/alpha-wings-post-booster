@@ -9,7 +9,7 @@ export default function PricingPage() {
   const [loading, setLoading] = useState<string | null>(null)
   const userId = '438a1d7b-a880-4956-ba3b-e6a69277019b'
 
-  const plans = [
+ const plans = [
   {
     name: 'Free',
     price: '$0',
@@ -37,7 +37,7 @@ export default function PricingPage() {
       'Schedule posts',
       'Brand voice training',
     ],
-    priceId: 'price_1SlDhaCsaEmlzaAVHU6w35Ht',
+    priceId: 'price_1SlWynCsaEmlzaAVoO4hiyyR', // ✅ TEST MODE
     highlight: true,
   },
   {
@@ -55,7 +55,7 @@ export default function PricingPage() {
       'Team collaboration',
       'API access',
     ],
-    priceId: 'price_1SlDj0CsaEmlzaAVozGhgYC7',
+    priceId: 'price_1SlX0UCsaEmlzaAV8g7LOIE9', // ✅ TEST MODE
     highlight: false,
   },
   {
@@ -75,10 +75,11 @@ export default function PricingPage() {
       'White-label option',
       'Custom integrations',
     ],
-    priceId: 'price_1SlDk9CsaEmlzaAVbEO1lJKJ',
+    priceId: 'price_1SlX1BCsaEmlzaAVFL5YZIiT', // ✅ TEST MODE
     highlight: false,
   },
 ]
+
 
 
   async function handleSubscribe(priceId: string | null, planName: string) {
