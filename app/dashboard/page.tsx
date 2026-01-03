@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
 import Navigation from '@/components/Navigation'
 
@@ -8,9 +9,9 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 )
-
 export default function Dashboard() {
-  const [userId] = useState('438a1d7b-a880-4956-ba3b-e6a69277019b')
+  const router = useRouter()
+  const [userId, setUserId] = useState<string | null>(null)
   const [topic, setTopic] = useState('')
   const [platform, setPlatform] = useState('linkedin')
   const [tone, setTone] = useState('professional')
@@ -21,22 +22,50 @@ export default function Dashboard() {
   const [user, setUser] = useState<any>(null)
 
   useEffect(() => {
-    loadUserData()
+    getCurrentUser()
   }, [])
 
+  async function getCurrentUser() {
+    try {
+      const res = await fetch('/api/auth/me', {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      })
+
+      const data = await res.json()
+
+      if (!res.ok || !data.userId) {
+        router.push('/login')
+        return
+      }
+
+      setUserId(data.userId)
+    } catch (err) {
+      console.error('Error getting current user:', err)
+      router.push('/login')
+    }
+  }
+
+  useEffect(() => {
+    if (userId) {
+      loadUserData()
+    }
+  }, [userId])
+
   async function loadUserData() {
+    if (!userId) return
+
     const { data } = await supabase
       .from('users')
       .select('*')
       .eq('id', userId)
       .single()
-
+    
     if (data) {
       setUser(data)
       setPostsRemaining(data.posts_limit - data.posts_this_month)
     }
   }
-
   // Helper function to get tier display info
   function getTierInfo() {
     if (!user) return { name: 'FREE', limit: 5, icon: '🎁' }
