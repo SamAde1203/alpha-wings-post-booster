@@ -1,174 +1,109 @@
 import { NextRequest, NextResponse } from 'next/server'
-import Stripe from 'stripe'
 import { createClient } from '@supabase/supabase-js'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '');
+// Function to get Supabase client - only created at runtime
+function getSupabaseClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-)
+  if (!url || !key) {
+    throw new Error('Missing Supabase credentials')
+  }
 
-// Map Stripe price IDs to subscription tiers
-const PRICE_TIER_MAP: Record<string, { tier: string; limit: number }> = {
-  'price_1SlDhaCsaEmlzaAVHU6w35Ht': { tier: 'starter', limit: 50 },
-  'price_1SlDj0CsaEmlzaAVozGhgYC7': { tier: 'pro', limit: 200 },
-  'price_1SlDk9CsaEmlzaAVbEO1lJKJ': { tier: 'agency', limit: 999999 },
+  return createClient(url, key)
 }
 
 export async function POST(request: NextRequest) {
-  const body = await request.text()
-  const signature = request.headers.get('stripe-signature') || ''
-
-  let event: Stripe.Event
+  const supabase = getSupabaseClient()
 
   try {
-    event = stripe.webhooks.constructEvent(
-      body,
-      signature,
-      process.env.STRIPE_WEBHOOK_SECRET || ''
-    )
-  } catch (err: any) {
-    console.error('❌ Webhook signature verification failed:', err.message)
-    return NextResponse.json({ error: 'Webhook error' }, { status: 400 })
-  }
+    const payload = await request.json()
 
-  // Handle the event
-  switch (event.type) {
-    case 'checkout.session.completed': {
-      const session = event.data.object as Stripe.Checkout.Session
-      const userId = session.client_reference_id || session.metadata?.userId
+    console.log('📨 Webhook received:', payload.type)
 
-      if (!userId) {
-        console.error('❌ No user ID in session')
+    // Handle different webhook types
+    switch (payload.type) {
+      case 'user.created':
+        await handleUserCreated(supabase, payload)
         break
-      }
-
-      try {
-        // Get subscription details
-        const subscriptionId = session.subscription as string
-        const subscription = await stripe.subscriptions.retrieve(subscriptionId)
-        const priceId = subscription.items.data[0].price.id
-
-        // Map price ID to tier
-        const tierInfo = PRICE_TIER_MAP[priceId]
-        if (!tierInfo) {
-          console.error(`⚠️ Unknown price ID: ${priceId}`)
-          break
-        }
-
-        // Update user in database
-        const { error } = await supabase
-          .from('users')
-          .update({
-            subscription_tier: tierInfo.tier,
-            subscription_status: 'active',
-            posts_limit: tierInfo.limit,
-            stripe_customer_id: session.customer as string,
-            stripe_subscription_id: subscriptionId,
-          })
-          .eq('id', userId)
-
-        if (error) {
-          console.error(`❌ Database error: ${error.message}`)
-          break
-        }
-
-        console.log(`✅ User ${userId} upgraded to ${tierInfo.tier}`)
-      } catch (err: any) {
-        console.error(`❌ Error processing checkout: ${err.message}`)
-      }
-      break
+      case 'user.updated':
+        await handleUserUpdated(supabase, payload)
+        break
+      default:
+        console.log(`⏭️ Unhandled webhook type: ${payload.type}`)
     }
 
-    case 'customer.subscription.updated': {
-      try {
-        const subscription = event.data.object as Stripe.Subscription
-        const customerId = subscription.customer as string
-
-        // Find user by Stripe customer ID
-        const { data: users, error: queryError } = await supabase
-          .from('users')
-          .select('id')
-          .eq('stripe_customer_id', customerId)
-
-        if (queryError || !users || users.length === 0) {
-          console.error(`⚠️ User not found for customer: ${customerId}`)
-          break
-        }
-
-        const user = users[0]
-        const priceId = subscription.items.data[0].price.id
-        const tierInfo = PRICE_TIER_MAP[priceId]
-
-        if (!tierInfo) {
-          console.error(`⚠️ Unknown price ID: ${priceId}`)
-          break
-        }
-
-        const { error } = await supabase
-          .from('users')
-          .update({
-            subscription_tier: tierInfo.tier,
-            subscription_status: subscription.status as string,
-            posts_limit: tierInfo.limit,
-          })
-          .eq('id', user.id)
-
-        if (error) {
-          console.error(`❌ Database error: ${error.message}`)
-          break
-        }
-
-        console.log(`✅ Subscription updated for user ${user.id} → ${tierInfo.tier}`)
-      } catch (err: any) {
-        console.error(`❌ Error processing subscription update: ${err.message}`)
-      }
-      break
-    }
-
-    case 'customer.subscription.deleted': {
-      try {
-        const subscription = event.data.object as Stripe.Subscription
-        const customerId = subscription.customer as string
-
-        const { data: users, error: queryError } = await supabase
-          .from('users')
-          .select('id')
-          .eq('stripe_customer_id', customerId)
-
-        if (queryError || !users || users.length === 0) {
-          console.error(`⚠️ User not found for customer: ${customerId}`)
-          break
-        }
-
-        const user = users[0]
-
-        // Downgrade to free tier
-        const { error } = await supabase
-          .from('users')
-          .update({
-            subscription_tier: 'free',
-            subscription_status: 'canceled',
-            posts_limit: 5,
-          })
-          .eq('id', user.id)
-
-        if (error) {
-          console.error(`❌ Database error: ${error.message}`)
-          break
-        }
-
-        console.log(`✅ User ${user.id} downgraded to free`)
-      } catch (err: any) {
-        console.error(`❌ Error processing subscription deletion: ${err.message}`)
-      }
-      break
-    }
-
-    default:
-      console.log(`⏭️ Unhandled event type: ${event.type}`)
+    return NextResponse.json({ received: true })
+  } catch (error: any) {
+    console.error('❌ Webhook error:', error.message)
+    return NextResponse.json(
+      { error: error.message },
+      { status: 400 }
+    )
   }
+}
 
-  return NextResponse.json({ received: true })
+async function handleUserCreated(supabase: any, payload: any) {
+  try {
+    const { user } = payload
+
+    if (!user?.id || !user?.email) {
+      console.error('❌ Missing user data')
+      return
+    }
+
+    console.log(`👤 Creating user record for ${user.email}`)
+
+    const { error } = await supabase
+      .from('users')
+      .insert({
+        id: user.id,
+        email: user.email,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        subscription_tier: 'free',
+        subscription_status: 'inactive',
+        posts_limit: 5,
+        posts_this_month: 0,
+      })
+
+    if (error) {
+      console.error('❌ Database error:', error.message)
+      return
+    }
+
+    console.log(`✅ User ${user.id} created successfully`)
+  } catch (err: any) {
+    console.error('❌ Error handling user created:', err.message)
+  }
+}
+
+async function handleUserUpdated(supabase: any, payload: any) {
+  try {
+    const { user } = payload
+
+    if (!user?.id) {
+      console.error('❌ Missing user ID')
+      return
+    }
+
+    console.log(`🔄 Updating user record for ${user.id}`)
+
+    const { error } = await supabase
+      .from('users')
+      .update({
+        email: user.email,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', user.id)
+
+    if (error) {
+      console.error('❌ Database error:', error.message)
+      return
+    }
+
+    console.log(`✅ User ${user.id} updated successfully`)
+  } catch (err: any) {
+    console.error('❌ Error handling user updated:', err.message)
+  }
 }
