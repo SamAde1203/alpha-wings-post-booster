@@ -36,7 +36,7 @@ export default function HomePage() {
         <div className="container mx-auto max-w-6xl text-center">
           <div className="mb-6">
             <span className="bg-blue-100 text-blue-800 px-4 py-2 rounded-full text-sm font-semibold">
-              🔥 Limited Time: Pay Once, Own Forever
+              🔥 Limited Time: Start Free, Upgrade Anytime
             </span>
           </div>
           
@@ -47,16 +47,16 @@ export default function HomePage() {
           </h1>
           
           <p className="text-lg md:text-xl text-gray-700 mb-8 max-w-3xl mx-auto">
-            Alpha Wings Post Booster uses AI to <strong>generate, optimize, and schedule</strong> your content across 6 platforms — for just <strong className="text-blue-600">$97. One time. Forever.</strong>
+            Alpha Wings Post Booster uses AI to <strong>generate, optimize, and schedule</strong> your content across 6 platforms — <strong className="text-blue-600">starting at just $9.99/month.</strong>
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
             <Link 
-              href="/checkout"
+              href="/pricing"
               className="bg-blue-600 text-white px-8 py-4 rounded-lg hover:bg-blue-700 font-bold text-lg inline-flex items-center justify-center shadow-lg hover:shadow-xl transition-all"
             >
               <DollarSign className="mr-2" />
-              Get Post Booster for $97
+              View Pricing Plans
             </Link>
             <Link 
               href="#demo"
@@ -69,7 +69,7 @@ export default function HomePage() {
           <div className="flex flex-wrap justify-center gap-6 text-sm text-gray-700">
             <div className="flex items-center">
               <Check className="h-5 w-5 text-green-600 mr-2" />
-              No Monthly Subscription
+              Free Plan Available
             </div>
             <div className="flex items-center">
               <Check className="h-5 w-5 text-green-600 mr-2" />
@@ -77,11 +77,12 @@ export default function HomePage() {
             </div>
             <div className="flex items-center">
               <Check className="h-5 w-5 text-green-600 mr-2" />
-              Own It Forever
+              Cancel Anytime
             </div>
           </div>
         </div>
       </section>
+
 
       {/* Social Proof */}
       <section className="py-12 bg-white border-y border-gray-200">
@@ -222,7 +223,7 @@ export default function HomePage() {
       <section className="py-20">
         <div className="container mx-auto max-w-5xl px-4">
           <h2 className="text-3xl md:text-4xl font-bold text-center text-gray-900 mb-4">
-            The Real Cost of Subscription Tools
+            The Real Cost of Subscription Tools.
           </h2>
           <p className="text-center text-gray-700 mb-12 text-lg">
             Let's do the math:
