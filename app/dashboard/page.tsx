@@ -30,12 +30,33 @@ export default function Dashboard() {
       .select('*')
       .eq('id', userId)
       .single()
-    
+
     if (data) {
       setUser(data)
       setPostsRemaining(data.posts_limit - data.posts_this_month)
     }
   }
+
+  // Helper function to get tier display info
+  function getTierInfo() {
+    if (!user) return { name: 'FREE', limit: 5, icon: '🎁' }
+
+    const tier = user.subscription_tier?.toLowerCase() || 'free'
+
+    switch (tier) {
+      case 'starter':
+        return { name: 'STARTER', limit: 50, icon: '⭐' }
+      case 'pro':
+        return { name: 'PRO', limit: 200, icon: '🚀' }
+      case 'agency':
+        return { name: 'AGENCY', limit: 999999, icon: '👑' }
+      default:
+        return { name: 'FREE', limit: 5, icon: '🎁' }
+    }
+  }
+
+  const tierInfo = getTierInfo()
+  const isUnlimited = tierInfo.limit > 10000
 
   async function handleGenerate() {
     if (!topic.trim()) {
@@ -55,9 +76,9 @@ export default function Dashboard() {
       })
 
       const data = await res.json()
-      
+
       if (!res.ok) throw new Error(data.error)
-      
+
       setPosts(data.posts)
       setPostsRemaining(data.postsRemaining)
     } catch (err: any) {
@@ -82,25 +103,47 @@ export default function Dashboard() {
           <div className="flex justify-between items-center">
             <div>
               <h2 className="text-2xl font-bold">
-                {postsRemaining > 10000 ? '👑 SUPER ADMIN' : `Your Plan: ${user?.subscription_tier?.toUpperCase() || 'FREE'}`}
+                {tierInfo.icon} {tierInfo.name} Plan
               </h2>
               <p className="text-blue-100">
-                {postsRemaining > 10000 ? 'Unlimited AI-powered posts' : 'Generate engaging AI-powered posts'}
+                {isUnlimited
+                  ? '♾️ Unlimited AI-powered posts'
+                  : `Generate up to ${tierInfo.limit} posts per month`}
               </p>
             </div>
             <div className="text-right">
               <div className="text-5xl font-bold">
-                {postsRemaining > 10000 ? '∞' : postsRemaining}
+                {isUnlimited ? '∞' : postsRemaining}
               </div>
               <div className="text-blue-100">
-                {postsRemaining > 10000 ? 'Unlimited Posts' : 'Posts Remaining'}
+                {isUnlimited ? 'Unlimited Posts' : 'Posts Remaining'}
               </div>
             </div>
           </div>
         </div>
 
+        {/* Plan Details */}
+        <div className="grid grid-cols-3 gap-4 mb-8">
+          <div className="bg-white rounded-xl p-4 shadow-md">
+            <div className="text-gray-600 text-sm font-medium">Monthly Limit</div>
+            <div className="text-2xl font-bold text-blue-600">
+              {isUnlimited ? '♾️' : tierInfo.limit}
+            </div>
+          </div>
+          <div className="bg-white rounded-xl p-4 shadow-md">
+            <div className="text-gray-600 text-sm font-medium">Used This Month</div>
+            <div className="text-2xl font-bold text-orange-600">{user?.posts_this_month || 0}</div>
+          </div>
+          <div className="bg-white rounded-xl p-4 shadow-md">
+            <div className="text-gray-600 text-sm font-medium">Remaining</div>
+            <div className="text-2xl font-bold text-green-600">
+              {isUnlimited ? '♾️' : postsRemaining}
+            </div>
+          </div>
+        </div>
+
         {/* Low Posts Warning */}
-        {postsRemaining < 10000 && postsRemaining < 3 && postsRemaining > 0 && (
+        {!isUnlimited && postsRemaining < 3 && postsRemaining > 0 && (
           <div className="bg-yellow-50 border-2 border-yellow-400 rounded-2xl p-6 mb-8">
             <div className="flex items-center justify-between">
               <div>
@@ -108,7 +151,7 @@ export default function Dashboard() {
                   ⚠️ Running Low on Posts!
                 </h3>
                 <p className="text-gray-700">
-                  You have only {postsRemaining} posts remaining. Upgrade to keep creating amazing content!
+                  You have only {postsRemaining} posts remaining this month. Upgrade to {tierInfo.name === 'FREE' ? 'Starter (50 posts)' : tierInfo.name === 'STARTER' ? 'Pro (200 posts)' : 'Agency (Unlimited)'} to keep creating!
                 </p>
               </div>
               <button
@@ -116,6 +159,28 @@ export default function Dashboard() {
                 className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl whitespace-nowrap transition-all"
               >
                 🚀 Upgrade Now
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Out of Posts */}
+        {!isUnlimited && postsRemaining <= 0 && (
+          <div className="bg-red-50 border-2 border-red-400 rounded-2xl p-6 mb-8">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">
+                  🎉 Monthly Limit Reached!
+                </h3>
+                <p className="text-gray-700">
+                  You've used all {tierInfo.limit} posts for this month. Your limit resets next month, or upgrade now for more!
+                </p>
+              </div>
+              <button
+                onClick={() => window.location.href = '/pricing'}
+                className="px-6 py-3 bg-gradient-to-r from-red-600 to-orange-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl whitespace-nowrap transition-all"
+              >
+                📈 Upgrade Now
               </button>
             </div>
           </div>
@@ -134,6 +199,7 @@ export default function Dashboard() {
                 onChange={(e) => setTopic(e.target.value)}
                 placeholder="e.g., AI trends in 2026"
                 className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                disabled={!isUnlimited && postsRemaining <= 0}
               />
             </div>
 
@@ -144,11 +210,12 @@ export default function Dashboard() {
                   <button
                     key={p}
                     onClick={() => setPlatform(p)}
+                    disabled={!isUnlimited && postsRemaining <= 0}
                     className={`p-3 rounded-xl border-2 font-medium capitalize transition-all ${
-                      platform === p 
-                        ? 'border-blue-500 bg-blue-50 text-blue-700' 
+                      platform === p
+                        ? 'border-blue-500 bg-blue-50 text-blue-700'
                         : 'border-gray-200 hover:border-gray-300'
-                    }`}
+                    } disabled:opacity-50 disabled:cursor-not-allowed`}
                   >
                     {p}
                   </button>
@@ -163,11 +230,12 @@ export default function Dashboard() {
                   <button
                     key={t}
                     onClick={() => setTone(t)}
+                    disabled={!isUnlimited && postsRemaining <= 0}
                     className={`p-3 rounded-xl border-2 font-medium capitalize transition-all ${
-                      tone === t 
-                        ? 'border-purple-500 bg-purple-50 text-purple-700' 
+                      tone === t
+                        ? 'border-purple-500 bg-purple-50 text-purple-700'
                         : 'border-gray-200 hover:border-gray-300'
-                    }`}
+                    } disabled:opacity-50 disabled:cursor-not-allowed`}
                   >
                     <div className="text-xs">{t}</div>
                   </button>
@@ -180,7 +248,7 @@ export default function Dashboard() {
                 <div className="font-bold mb-1">⚠️ {error}</div>
                 {error.includes('Limit reached') && (
                   <div className="text-sm mt-2">
-                    <p>You've used all your free posts for this month! 🎉</p>
+                    <p>You've used all your posts for this month! 🎉</p>
                     <p className="mt-1">
                       <a href="/pricing" className="text-red-600 font-bold underline">
                         Upgrade now
@@ -193,7 +261,7 @@ export default function Dashboard() {
 
             <button
               onClick={handleGenerate}
-              disabled={loading}
+              disabled={loading || (!isUnlimited && postsRemaining <= 0)}
               className="w-full py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold text-lg shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all"
             >
               {loading ? (
@@ -201,6 +269,8 @@ export default function Dashboard() {
                   <span className="animate-spin">⏳</span>
                   Generating...
                 </span>
+              ) : !isUnlimited && postsRemaining <= 0 ? (
+                '❌ Monthly Limit Reached'
               ) : (
                 '✨ Generate Posts'
               )}
