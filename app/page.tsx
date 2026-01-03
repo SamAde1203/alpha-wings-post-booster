@@ -1,5 +1,6 @@
 // app/page.tsx - UPDATED WITH BETTER CONTRAST
 import Link from 'next/link'
+import Image from "next/image"
 import { Check, X, Zap, DollarSign, Clock, Sparkles, Target, TrendingUp, Users } from 'lucide-react'
 
 export default function HomePage() {
@@ -8,12 +9,19 @@ export default function HomePage() {
       {/* Header */}
       <header className="border-b bg-white/80 backdrop-blur-sm fixed w-full z-50 shadow-sm">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <div className="flex items-center space-x-2">
-            <Sparkles className="h-8 w-8 text-blue-600" />
-            <span className="text-xl md:text-2xl font-bold text-gray-900">
-              Alpha Wings Post Booster
-            </span>
-          </div>
+          <div className="flex items-center space-x-3">
+  <Image
+    src="/alpha-wings-ai-logo.png"
+    alt="Alpha Wings AI"
+    width={40}
+    height={40}
+    priority
+  />
+  <span className="text-xl md:text-2xl font-bold text-gray-900">
+    Alpha Wings Post Booster
+  </span>
+</div>
+
           <div className="flex items-center space-x-4">
             <Link 
               href="/login"
