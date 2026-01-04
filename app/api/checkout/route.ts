@@ -15,7 +15,7 @@ if (!SUPABASE_URL) console.error('❌ Missing NEXT_PUBLIC_SUPABASE_URL')
 if (!SUPABASE_SERVICE_ROLE_KEY) console.error('❌ Missing SUPABASE_SERVICE_ROLE_KEY')
 
 const stripe = new Stripe(STRIPE_SECRET_KEY || '', {
-  apiVersion: '2024-06-20',
+ apiVersion: '2024-06-20' as any,
   maxNetworkRetries: 2,
 })
 
