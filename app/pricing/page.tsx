@@ -108,21 +108,16 @@ export default function PricingPage() {
     },
   ]
 
-   async function handleSubscribe(priceId: string | null, planName: string, priceAmount: number) {
+  async function handleSubscribe(priceId: string | null, planName: string, priceAmount: number) {
     // 🎯 Track plan click
     analytics.clickPricingPlan(planName, priceAmount)
 
     if (!priceId) {
       // 🎯 Track free plan selection
-      analytics.trackEvent('free_plan_selected', { plan: planName })
+      analytics.trackEvent('free_plan_selected', {
+        plan: planName
+      })
       window.location.href = '/dashboard'
-      return
-    }
-
-    // Must be logged in to subscribe
-    if (!userId || !userEmail) {
-      alert('Please log in to subscribe')
-      router.push('/login')
       return
     }
 
@@ -135,11 +130,7 @@ export default function PricingPage() {
       const res = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          priceId,
-          userId,
-          email: userEmail
-        }),
+        body: JSON.stringify({ priceId, userId }),
       })
 
       const data = await res.json()
@@ -150,6 +141,7 @@ export default function PricingPage() {
 
       const { url } = data
 
+      // Direct redirect to Stripe Checkout
       if (url) {
         // 🎯 Track redirect to Stripe
         analytics.trackEvent('redirect_to_stripe', {
@@ -163,13 +155,19 @@ export default function PricingPage() {
       }
     } catch (error: any) {
       console.error('Subscription error:', error)
+      
+      // 🎯 Track checkout error
       analytics.error('checkout', error.message || 'Payment failed', 'pricing_page')
+      analytics.trackEvent('checkout_error', {
+        plan: planName,
+        error: error.message || 'Unknown error'
+      })
+      
       alert(error.message || 'Payment failed. Please try again.')
     } finally {
       setLoading(null)
     }
   }
-
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
@@ -177,7 +175,7 @@ export default function PricingPage() {
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-               Alpha Wings Post Booster
+              ✈️ Alpha Wings Post Booster
             </h1>
             <a
               href="/"
