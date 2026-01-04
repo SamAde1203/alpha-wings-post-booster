@@ -24,6 +24,10 @@ export default function Dashboard() {
   const [postsRemaining, setPostsRemaining] = useState(5)
   const [user, setUser] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [contentLength, setContentLength] = useState('medium')
+  const [writingStyle, setWritingStyle] = useState('direct')
+  const [customInstructions, setCustomInstructions] = useState('')
+
 
   useEffect(() => {
     checkAuth()
@@ -33,7 +37,7 @@ export default function Dashboard() {
   useEffect(() => {
     if (user) {
       analytics.viewDashboard()
-      analytics.trackEvent('dashboard_plan_view', {
+     analytics.track('dashboard_plan_view', {
         plan: user.subscription_tier || 'free',
         posts_remaining: postsRemaining,
         posts_used: user.posts_this_month || 0
@@ -121,7 +125,8 @@ export default function Dashboard() {
       const res = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, topic, platform, tone, variationCount: 3 })
+        body: JSON.stringify({ userId, topic, platform, tone, contentLength, writingStyle, customInstructions, variationCount: 3 })
+
       })
 
       const data = await res.json()
@@ -362,25 +367,105 @@ export default function Dashboard() {
                 </div>
               </div>
 
+                            {/* TONE SELECTION - ENHANCED */}
               <div>
                 <label className="block font-medium mb-2 text-sm sm:text-base">Tone 🎭</label>
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-3">
-                  {['professional', 'casual', 'enthusiastic', 'educational', 'inspirational'].map((t) => (
+                  {['professional', 'casual', 'enthusiastic', 'educational', 'inspirational', 
+                    'humorous', 'authoritative', 'conversational', 'motivational', 'storytelling'].map((t) => (
                     <button
                       key={t}
                       onClick={() => handleToneChange(t)}
                       disabled={!isUnlimited && postsRemaining <= 0}
-                      className={`p-2 sm:p-3 rounded-xl border-2 font-medium capitalize transition-all text-xs sm:text-base ${
+                      className={`p-2 sm:p-3 rounded-xl border-2 font-medium capitalize transition-all text-xs sm:text-sm ${
                         tone === t
                           ? 'border-purple-500 bg-purple-50 text-purple-700'
                           : 'border-gray-200 hover:border-gray-300'
                       } disabled:opacity-50 disabled:cursor-not-allowed`}
                     >
-                      <div>{t}</div>
+                      {t}
                     </button>
                   ))}
                 </div>
               </div>
+
+              {/* NEW: CONTENT LENGTH */}
+              <div>
+                <label className="block font-medium mb-2 text-sm sm:text-base">Content Length 📏</label>
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { value: 'short', label: 'Short', desc: '50-100 words' },
+                    { value: 'medium', label: 'Medium', desc: '100-200 words' },
+                    { value: 'long', label: 'Long', desc: '200-300 words' }
+                  ].map((length) => (
+                    <button
+                      key={length.value}
+                      onClick={() => {
+                        setContentLength(length.value)
+                        analytics.trackEvent('content_length_selected', { length: length.value })
+                      }}
+                      disabled={!isUnlimited && postsRemaining <= 0}
+                      className={`p-3 rounded-xl border-2 font-medium transition-all text-sm ${
+                        contentLength === length.value
+                          ? 'border-green-500 bg-green-50 text-green-700'
+                          : 'border-gray-200 hover:border-gray-300'
+                      } disabled:opacity-50 disabled:cursor-not-allowed`}
+                    >
+                      <div className="font-bold">{length.label}</div>
+                      <div className="text-xs opacity-75">{length.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* NEW: WRITING STYLE */}
+              <div>
+                <label className="block font-medium mb-2 text-sm sm:text-base">Writing Style ✍️</label>
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-3">
+                  {[
+                    { value: 'direct', label: 'Direct', emoji: '🎯' },
+                    { value: 'storytelling', label: 'Story', emoji: '📖' },
+                    { value: 'listicle', label: 'Listicle', emoji: '📝' },
+                    { value: 'question', label: 'Question', emoji: '❓' },
+                    { value: 'howto', label: 'How-to', emoji: '🔧' }
+                  ].map((style) => (
+                    <button
+                      key={style.value}
+                      onClick={() => {
+                        setWritingStyle(style.value)
+                        analytics.trackEvent('writing_style_selected', { style: style.value })
+                      }}
+                      disabled={!isUnlimited && postsRemaining <= 0}
+                      className={`p-2 sm:p-3 rounded-xl border-2 font-medium transition-all text-xs sm:text-sm ${
+                        writingStyle === style.value
+                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'border-gray-200 hover:border-gray-300'
+                      } disabled:opacity-50 disabled:cursor-not-allowed`}
+                    >
+                      <div>{style.emoji}</div>
+                      <div>{style.label}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* NEW: CUSTOM INSTRUCTIONS */}
+              <div>
+                <label className="block font-medium mb-2 text-sm sm:text-base">
+                  Custom Instructions 💡 <span className="text-gray-500 text-xs">(Optional)</span>
+                </label>
+                <textarea
+                  value={customInstructions}
+                  onChange={(e) => setCustomInstructions(e.target.value)}
+                  placeholder="e.g., Include a call-to-action, mention our upcoming webinar, use emojis..."
+                  className="w-full px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all min-h-[80px]"
+                  disabled={!isUnlimited && postsRemaining <= 0}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Add specific requirements or preferences for your post generation
+                </p>
+              </div>
+
 
               {error && (
                 <div className="p-3 sm:p-4 bg-red-50 border-2 border-red-200 rounded-xl text-red-700 text-sm sm:text-base">

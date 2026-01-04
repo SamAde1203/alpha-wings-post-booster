@@ -1,29 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import OpenAI from 'openai'
 
-// Function to get Supabase client - only created at runtime
-function getSupabaseClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+)
 
-  if (!url || !key) {
-    throw new Error('Missing Supabase credentials')
-  }
-
-  return createClient(url, key)
-}
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+})
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = getSupabaseClient()
+    const { 
+      userId, 
+      topic, 
+      platform, 
+      tone, 
+      contentLength = 'medium',      // NEW - default to medium
+      writingStyle = 'direct',       // NEW - default to direct
+      customInstructions = '',       // NEW - optional
+      variationCount = 3 
+    } = await request.json()
 
-    const { userId, topic, platform, tone, variationCount = 3 } = await request.json()
-
-    // Validate input
-    if (!userId || !topic?.trim() || !platform || !tone) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
-    }
-
+    // Validate user and check limits
     const { data: user, error: userError } = await supabase
       .from('users')
       .select('*')
@@ -34,220 +35,151 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    // Check post limits
-    const isSuperAdmin = user.posts_limit > 10000
-    if (!isSuperAdmin && user.posts_this_month >= user.posts_limit) {
-      return NextResponse.json({
-        error: `Monthly post limit reached. You've used ${user.posts_this_month}/${user.posts_limit} posts this month.`
-      }, { status: 403 })
+    // Check if user has posts remaining
+    const postsRemaining = user.posts_limit - user.posts_this_month
+    if (postsRemaining <= 0 && user.posts_limit < 10000) {
+      return NextResponse.json(
+        { error: `Monthly limit reached! You've used all ${user.posts_limit} posts this month.` },
+        { status: 403 }
+      )
     }
 
-    let posts: any[] = []
-
-    // Use OpenAI since it's configured
-    if (process.env.OPENAI_API_KEY) {
-      console.log('🎯 Using OpenAI GPT-4 for generation')
-      posts = await generateWithOpenAI(topic, platform, tone, variationCount)
-    } else {
-      console.log('⚠️ No API key found, using fallback')
-      posts = generateFallbackPosts(topic, platform, tone, variationCount)
+    // Map content length to word count
+    const wordCountMap: Record<string, string> = {
+      short: '50-100',
+      medium: '100-200',
+      long: '200-300'
     }
 
-    // Ensure we have the right number of posts
-    const finalPosts = posts.slice(0, variationCount)
+    // Map writing style to description
+    const styleDescriptions: Record<string, string> = {
+      direct: 'Get straight to the point with clear, concise messaging',
+      storytelling: 'Use narrative techniques with a beginning, middle, and end',
+      listicle: 'Structure as numbered points or bullet lists',
+      question: 'Start with engaging questions and provide answers',
+      howto: 'Provide step-by-step instructions or actionable advice'
+    }
 
-    // Save posts to database
-    const savedPosts = []
-    for (const post of finalPosts) {
-      const characterCount = post.content?.length || 0
-      const wordCount = post.content?.split(/\s+/).length || 0
+    // Generate posts with AI
+    const posts = []
+    for (let i = 0; i < variationCount; i++) {
+      const prompt = `Generate a ${contentLength} ${platform} post about: ${topic}
 
-      const { data, error } = await supabase
-        .from('generated_posts')
+REQUIREMENTS:
+- Tone: ${tone}
+- Writing Style: ${styleDescriptions[writingStyle] || 'Direct and engaging'}
+- Target Length: ${wordCountMap[contentLength]} words
+- Platform: ${platform}
+${customInstructions ? `- Special Instructions: ${customInstructions}` : ''}
+
+PLATFORM GUIDELINES:
+${platform === 'linkedin' ? '- Professional tone, use line breaks for readability, include 3-5 relevant hashtags' : ''}
+${platform === 'twitter' ? '- Keep it punchy and engaging, use thread format if needed, 2-3 hashtags max' : ''}
+${platform === 'facebook' ? '- Conversational and engaging, ask questions to encourage comments' : ''}
+${platform === 'instagram' ? '- Visual and lifestyle-focused, use relevant hashtags (5-10), emojis encouraged' : ''}
+
+STYLE APPROACH:
+${writingStyle === 'storytelling' ? '- Tell a compelling story with personal anecdotes or examples' : ''}
+${writingStyle === 'listicle' ? '- Use numbered points or bullet format for easy scanning' : ''}
+${writingStyle === 'question' ? '- Start with 1-2 engaging questions that hook the reader' : ''}
+${writingStyle === 'howto' ? '- Break down into clear, actionable steps' : ''}
+
+Generate an engaging, ${tone} post that follows the ${writingStyle} style. Make it authentic and valuable.`
+
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4',
+        messages: [
+          {
+            role: 'system',
+            content: `You are an expert social media content creator specializing in ${platform}. 
+You understand how to write engaging content in various tones and styles. 
+Create authentic, valuable posts that drive engagement.`
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        temperature: 0.8,
+        max_tokens: 500
+      })
+
+      const content = completion.choices[0].message.content || ''
+      
+      // Calculate metrics
+      const wordCount = content.split(/\s+/).length
+      const characterCount = content.length
+      const qualityScore = Math.min(10, Math.floor(7 + Math.random() * 3))
+
+      // Save post to database
+      const { data: savedPost } = await supabase
+        .from('posts')
         .insert({
           user_id: userId,
-          topic,
+          content,
           platform,
-          content: post.content,
           tone,
-          ai_engine: process.env.OPENAI_API_KEY ? 'gpt-4' : 'fallback',
-          quality_score: post.quality_score || 8.0,
-          character_count: characterCount,
           word_count: wordCount,
-          created_at: new Date().toISOString()
+          character_count: characterCount,
+          quality_score: qualityScore,
+          content_length: contentLength,      // NEW
+          writing_style: writingStyle,        // NEW
+          custom_instructions: customInstructions // NEW
         })
         .select()
         .single()
 
-      if (!error && data) savedPosts.push(data)
+      posts.push({
+        id: savedPost?.id,
+        content,
+        platform,
+        tone,
+        word_count: wordCount,
+        character_count: characterCount,
+        quality_score: qualityScore,
+        content_length: contentLength,
+        writing_style: writingStyle
+      })
     }
 
-    // Update user stats
-    const { error: updateError } = await supabase
+    // Update user's post count
+    const newPostCount = user.posts_this_month + variationCount
+    await supabase
       .from('users')
-      .update({
-        posts_this_month: user.posts_this_month + 1,
-        total_posts_generated: (user.total_posts_generated || 0) + 1,
-        updated_at: new Date().toISOString()
-      })
+      .update({ posts_this_month: newPostCount })
       .eq('id', userId)
 
-    if (updateError) {
-      console.error('Error updating user:', updateError)
+    // Check if user reached 80% threshold and send alert
+    const percentageUsed = (newPostCount / user.posts_limit) * 100
+    if (percentageUsed >= 80 && percentageUsed < 100 && user.posts_limit < 10000) {
+      // Send usage alert email
+      await fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/send-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'usage-alert',
+          to: user.email,
+          data: {
+            userName: user.email.split('@')[0],
+            postsUsed: newPostCount,
+            postsLimit: user.posts_limit,
+            percentageUsed: Math.round(percentageUsed),
+            upgradeUrl: `${process.env.NEXT_PUBLIC_SITE_URL}/pricing`
+          }
+        })
+      })
     }
 
-    const postsRemaining = isSuperAdmin
-      ? user.posts_limit
-      : Math.max(0, user.posts_limit - (user.posts_this_month + 1))
-
     return NextResponse.json({
-      success: true,
-      posts: savedPosts,
-      postsRemaining,
-      generatedCount: savedPosts.length
+      posts,
+      postsRemaining: user.posts_limit - newPostCount
     })
 
   } catch (error: any) {
-    console.error('🔴 API Error:', error.message)
+    console.error('Generate API Error:', error)
     return NextResponse.json(
-      { error: error.message || 'Internal server error' },
+      { error: error.message || 'Failed to generate posts' },
       { status: 500 }
     )
   }
-}
-
-// OpenAI Generation Function
-async function generateWithOpenAI(topic: string, platform: string, tone: string, variationCount: number) {
-  try {
-    const { default: OpenAI } = await import('openai')
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! })
-
-    const prompt = `Create exactly ${variationCount} social media posts for ${platform} about "${topic}" with a ${tone} tone.
-
-Requirements for each post:
-1. Unique and engaging content
-2. Optimized for ${platform} style and audience
-3. Use appropriate hashtags and emojis
-4. Match the ${tone} tone style
-5. Each post should be 150-400 characters
-6. Return ONLY a valid JSON array
-
-Format each post as:
-{
-  "content": "The full post text here with emojis and hashtags",
-  "quality_score": 8.5
-}
-
-Return ONLY a JSON array like this:
-[
-  {"content": "Post 1 text here", "quality_score": 8.5},
-  {"content": "Post 2 text here", "quality_score": 8.7}
-]`
-
-    console.log(`🎯 Generating ${variationCount} ${tone} posts for ${platform} about: ${topic}`)
-
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4',
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.8,
-    })
-
-    const text = completion.choices[0]?.message?.content || '[]'
-    console.log('📝 OpenAI response received')
-
-    // Clean and parse the response
-    const cleaned = text
-      .replace(/```json\s*/g, '')
-      .replace(/```\s*/g, '')
-      .trim()
-
-    console.log('📊 Response preview:', cleaned.substring(0, 200) + '...')
-
-    try {
-      const parsed = JSON.parse(cleaned)
-
-      if (Array.isArray(parsed)) {
-        console.log('✅ Successfully parsed OpenAI response')
-        return parsed.map((post: any) => ({
-          content: post.content || post.text || '',
-          quality_score: typeof post.quality_score === 'number' ? post.quality_score : 8.0
-        }))
-      }
-      throw new Error('Response is not an array')
-
-    } catch (parseError) {
-      console.error('❌ Failed to parse OpenAI response:', parseError)
-
-      // Try to extract JSON from text
-      const jsonMatch = text.match(/\[[\s\S]*\]/)
-      if (jsonMatch) {
-        try {
-          const extracted = JSON.parse(jsonMatch[0])
-          if (Array.isArray(extracted)) {
-            console.log('✅ Extracted JSON from response')
-            return extracted.map((post: any) => ({
-              content: post.content || post.text || '',
-              quality_score: typeof post.quality_score === 'number' ? post.quality_score : 8.0
-            }))
-          }
-        } catch (e) {
-          console.error('❌ Even extraction failed:', e)
-        }
-      }
-
-      // If all parsing fails, create from text
-      console.log('🔄 Creating posts from raw text')
-      const lines = text.split('\n').filter(line =>
-        line.trim().length > 50 &&
-        !line.includes('```') &&
-        !line.includes('JSON')
-      )
-
-      return lines.slice(0, variationCount).map((line, i) => ({
-        content: line.trim(),
-        quality_score: 8.0 + (Math.random() * 0.5) // 8.0-8.5
-      }))
-    }
-
-  } catch (error: any) {
-    console.error('❌ OpenAI generation failed:', error.message)
-    // Fallback to basic posts
-    return generateFallbackPosts(topic, platform, tone, variationCount)
-  }
-}
-
-// Fallback Generation Function
-function generateFallbackPosts(topic: string, platform: string, tone: string, variationCount: number) {
-  console.log('🔄 Using fallback generation')
-
-  const posts = []
-  const platformEmojis: Record<string, string> = {
-    linkedin: '💼',
-    twitter: '🐦',
-    facebook: '👥',
-    instagram: '📸'
-  }
-
-  const emoji = platformEmojis[platform] || '🚀'
-
-  for (let i = 0; i < variationCount; i++) {
-    const templates = [
-      `${emoji} ${tone} insight: ${topic}\n\nImportant perspective for ${platform} professionals.\n\nShare your thoughts below! 👇\n\n#${topic.replace(/\s+/g, '')} #${platform}`,
-
-      `🌟 ${topic.toUpperCase()} on ${platform.toUpperCase()}\n\n${tone === 'professional' ? 'Professional analysis' : tone} on this key topic.\n\nJoin the conversation! 💬\n\n#${platform} #ThoughtLeadership`,
-
-      `💭 ${tone} reflection on ${topic}\n\nHow does this impact our future?\n\nLet's discuss! 🔗\n\n#${topic.split(' ').join('')} #FutureTrends`
-    ]
-
-    const content = templates[i % templates.length]
-    const qualityScore = 7.5 + (Math.random() * 0.5) // 7.5-8.0
-
-    posts.push({
-      content,
-      quality_score: parseFloat(qualityScore.toFixed(1))
-    })
-  }
-
-  console.log(`📝 Generated ${posts.length} fallback posts`)
-  return posts
 }
