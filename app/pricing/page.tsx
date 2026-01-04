@@ -277,7 +277,7 @@ export default function PricingPage() {
 
               <button
                 onClick={() => handleSubscribe(plan.priceId, plan.name, plan.priceAmount)}
-                disabled={loading === plan.name || (plan.priceId && !userId)}
+                disabled={loading === plan.name || (plan.priceId !== null && !userId)}
                 className={`w-full py-4 rounded-xl font-bold text-lg shadow-lg transition-all ${
                   plan.highlight
                     ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:shadow-2xl'
