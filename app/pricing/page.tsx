@@ -1,17 +1,41 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { loadStripe } from '@stripe/stripe-js'
+import { createClient } from '@supabase/supabase-js'
+import { useRouter } from 'next/navigation'
 import { analytics } from '@/lib/analytics'
 
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '')
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+)
 
 export default function PricingPage() {
+  const router = useRouter()
   const [loading, setLoading] = useState<string | null>(null)
-  const userId = '438a1d7b-a880-4956-ba3b-e6a69277019b'
+  const [userId, setUserId] = useState<string | null>(null)
+  const [userEmail, setUserEmail] = useState<string | null>(null)
+  const [isLoadingUser, setIsLoadingUser] = useState(true)
 
-  // 🎯 Track pricing page view on mount
+  // 🎯 Get real user from auth
   useEffect(() => {
+    async function loadUser() {
+      try {
+        const { data } = await supabase.auth.getSession()
+        if (data.session?.user) {
+          setUserId(data.session.user.id)
+          setUserEmail(data.session.user.email || '')
+          console.log('✅ User loaded:', data.session.user.id)
+        } else {
+          console.log('⚠️ No user session found')
+        }
+      } catch (err) {
+        console.error('Error loading user:', err)
+      } finally {
+        setIsLoadingUser(false)
+      }
+    }
+    loadUser()
     analytics.viewPricing()
   }, [])
 
@@ -95,27 +119,39 @@ export default function PricingPage() {
     analytics.clickPricingPlan(planName, priceAmount)
 
     if (!priceId) {
-      // 🎯 Track free plan selection
-      analytics.trackEvent('free_plan_selected', {
-        plan: planName
-      })
+      // Free plan - redirect to dashboard
+      analytics.trackEvent('free_plan_selected', { plan: planName })
       window.location.href = '/dashboard'
+      return
+    }
+
+    // Check if user is logged in
+    if (!userId || !userEmail) {
+      alert('Please log in to subscribe to a paid plan')
+      router.push('/login?redirect=/pricing')
       return
     }
 
     setLoading(planName)
 
     try {
+      console.log('📤 Sending checkout request:', { priceId, userId, email: userEmail })
+
       // 🎯 Track checkout start
       analytics.startCheckout(planName, priceAmount)
 
       const res = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ priceId, userId }),
+        body: JSON.stringify({ 
+          priceId,
+          userId,
+          email: userEmail
+        }),
       })
 
       const data = await res.json()
+      console.log('📥 Checkout response:', data)
 
       if (!res.ok) {
         throw new Error(data.error || 'Payment failed')
@@ -123,7 +159,6 @@ export default function PricingPage() {
 
       const { url } = data
 
-      // Direct redirect to Stripe Checkout
       if (url) {
         // 🎯 Track redirect to Stripe
         analytics.trackEvent('redirect_to_stripe', {
@@ -131,12 +166,13 @@ export default function PricingPage() {
           price: priceAmount,
           priceId: priceId
         })
+        console.log('✅ Redirecting to Stripe:', url)
         window.location.href = url
       } else {
         throw new Error('No checkout URL received')
       }
     } catch (error: any) {
-      console.error('Subscription error:', error)
+      console.error('❌ Subscription error:', error)
       
       // 🎯 Track checkout error
       analytics.error('checkout', error.message || 'Payment failed', 'pricing_page')
@@ -159,13 +195,27 @@ export default function PricingPage() {
             <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
               ✈️ Alpha Wings Post Booster
             </h1>
-            <a
-              href="/"
-              onClick={() => analytics.trackEvent('pricing_back_to_home', { page: 'pricing' })}
-              className="px-4 py-2 text-gray-600 hover:text-gray-900 font-medium"
-            >
-              ← Back to Home
-            </a>
+            <div className="flex items-center gap-4">
+              {userId ? (
+                <span className="text-sm text-gray-600">
+                  ✅ Logged in
+                </span>
+              ) : (
+                <a
+                  href="/login"
+                  className="px-4 py-2 text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  Log In
+                </a>
+              )}
+              <a
+                href="/"
+                onClick={() => analytics.trackEvent('pricing_back_to_home', { page: 'pricing' })}
+                className="px-4 py-2 text-gray-600 hover:text-gray-900 font-medium"
+              >
+                ← Back to Home
+              </a>
+            </div>
           </div>
         </div>
       </header>
@@ -178,6 +228,11 @@ export default function PricingPage() {
           <p className="text-xl text-gray-600">
             Simple, transparent pricing. Start free, upgrade anytime.
           </p>
+          {!userId && (
+            <p className="mt-4 text-sm text-orange-600 font-medium">
+              ⚠️ Please log in to subscribe to paid plans
+            </p>
+          )}
         </div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
@@ -188,7 +243,6 @@ export default function PricingPage() {
                 plan.highlight ? 'ring-4 ring-blue-500' : ''
               }`}
               onMouseEnter={() => {
-                // 🎯 Track plan card hover
                 analytics.trackEvent('pricing_plan_hover', {
                   plan: plan.name,
                   price: plan.priceAmount
@@ -223,7 +277,7 @@ export default function PricingPage() {
 
               <button
                 onClick={() => handleSubscribe(plan.priceId, plan.name, plan.priceAmount)}
-                disabled={loading === plan.name}
+                disabled={loading === plan.name || (plan.priceId && !userId)}
                 className={`w-full py-4 rounded-xl font-bold text-lg shadow-lg transition-all ${
                   plan.highlight
                     ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:shadow-2xl'
@@ -237,6 +291,8 @@ export default function PricingPage() {
                   </span>
                 ) : plan.name === 'Free' ? (
                   'Get Started'
+                ) : !userId ? (
+                  'Log In to Subscribe'
                 ) : (
                   'Subscribe Now'
                 )}
