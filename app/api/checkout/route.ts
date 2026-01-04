@@ -1,59 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
-import { createClient } from '@supabase/supabase-js'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '') // ✅ No version = uses latest stable
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '')
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-)
-
-export async function POST(request: NextRequest) {
+export async function POST(req: NextRequest) {
   try {
-    const { priceId, userId, email } = await request.json()
+    const { priceId, userId } = await req.json()
 
-    if (!priceId || !userId || !email) {
+    if (!priceId || !userId) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: 'Missing priceId or userId' },
         { status: 400 }
       )
     }
 
-    console.log(`💳 Creating checkout for user ${userId} with price ${priceId}`)
-
-    // Check if user already has Stripe customer ID
-    const { data: user } = await supabase
-      .from('users')
-      .select('stripe_customer_id')
-      .eq('id', userId)
-      .single()
-
-    let customerId = user?.stripe_customer_id
-
-    // Create Stripe customer if doesn't exist
-    if (!customerId) {
-      const customer = await stripe.customers.create({
-        email,
-        metadata: {
-          supabase_user_id: userId
-        }
-      })
-      customerId = customer.id
-
-      console.log(`✅ Created Stripe customer: ${customerId}`)
-
-      // Save customer ID
-      await supabase
-        .from('users')
-        .update({ stripe_customer_id: customerId })
-        .eq('id', userId)
-    }
-
-    // Create checkout session
+    // Create Stripe Checkout Session
     const session = await stripe.checkout.sessions.create({
-      customer: customerId,
-      client_reference_id: userId,
+      mode: 'subscription',
       payment_method_types: ['card'],
       line_items: [
         {
@@ -61,22 +24,20 @@ export async function POST(request: NextRequest) {
           quantity: 1,
         },
       ],
-      mode: 'subscription',
-      success_url: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://alphawingsai.com'}/dashboard?success=true`,
-      cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://alphawingsai.com'}/pricing?canceled=true`,
+      success_url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001'}/dashboard?success=true`,
+      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001'}/pricing?canceled=true`,
       metadata: {
-        userId: userId,
-      }
+        userId,
+      },
+      client_reference_id: userId,
     })
 
-    console.log(`✅ Checkout session created: ${session.id}`)
-
-    return NextResponse.json({ url: session.url })
-
+    // Return the checkout URL (NEW METHOD)
+    return NextResponse.json({ url: session.url }, { status: 200 })
   } catch (error: any) {
-    console.error('❌ Checkout error:', error)
+    console.error('Stripe checkout error:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to create checkout session' },
+      { error: error.message || 'Internal server error' },
       { status: 500 }
     )
   }
