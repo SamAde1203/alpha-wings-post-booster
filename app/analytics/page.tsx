@@ -2,215 +2,363 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@supabase/supabase-js'
+import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import Navigation from '@/components/Navigation'
+import { analytics } from '@/lib/analytics'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 )
 
+interface Post {
+  id: string
+  content: string
+  platform: string
+  tone: string
+  writing_style: string
+  content_length: string
+  word_count: number
+  quality_score: number
+  created_at: string
+}
+
+interface AnalyticsData {
+  totalPosts: number
+  postsThisMonth: number
+  postsByPlatform: Record<string, number>
+  postsByTone: Record<string, number>
+  postsByStyle: Record<string, number>
+  averageQuality: number
+  recentPosts: Post[]
+  postsThisWeek: number
+}
+
 export default function AnalyticsPage() {
-  const [userId] = useState('438a1d7b-a880-4956-ba3b-e6a69277019b')
-  const [stats, setStats] = useState<any>({
-    totalPosts: 0,
-    thisMonth: 0,
-    platforms: {},
-    tones: {},
-    avgQuality: 0,
-    topTopics: [],
-  })
+  const router = useRouter()
   const [loading, setLoading] = useState(true)
+  const [userId, setUserId] = useState<string | null>(null)
+  const [data, setData] = useState<AnalyticsData | null>(null)
+  const [timeRange, setTimeRange] = useState<'week' | 'month' | 'all'>('month')
 
   useEffect(() => {
-    loadAnalytics()
+    checkAuthAndLoadData()
+    analytics.track('analytics_page_viewed', { timestamp: new Date().toISOString() })
   }, [])
 
-  async function loadAnalytics() {
-    const { data: posts } = await supabase
-      .from('generated_posts')
-      .select('*')
-      .eq('user_id', userId)
-
-    if (posts) {
-      const now = new Date()
-      const thisMonth = posts.filter(p => {
-        const created = new Date(p.created_at)
-        return created.getMonth() === now.getMonth() && 
-               created.getFullYear() === now.getFullYear()
-      })
-
-      const platforms = posts.reduce((acc: any, p) => {
-        acc[p.platform] = (acc[p.platform] || 0) + 1
-        return acc
-      }, {})
-
-      const tones = posts.reduce((acc: any, p) => {
-        acc[p.tone] = (acc[p.tone] || 0) + 1
-        return acc
-      }, {})
-
-      const topicCounts = posts.reduce((acc: any, p) => {
-        acc[p.topic] = (acc[p.topic] || 0) + 1
-        return acc
-      }, {})
-
-      const topTopics = Object.entries(topicCounts)
-        .sort((a: any, b: any) => b[1] - a[1])
-        .slice(0, 5)
-
-      const avgQuality = posts.length > 0
-        ? posts.reduce((sum, p) => sum + (p.quality_score || 0), 0) / posts.length
-        : 0
-
-      setStats({
-        totalPosts: posts.length,
-        thisMonth: thisMonth.length,
-        platforms,
-        tones,
-        avgQuality: avgQuality.toFixed(1),
-        topTopics,
-      })
+  useEffect(() => {
+    if (userId) {
+      loadAnalytics()
     }
+  }, [userId, timeRange])
 
-    setLoading(false)
+  async function checkAuthAndLoadData() {
+    try {
+      const { data } = await supabase.auth.getSession()
+      if (!data.session?.user?.id) {
+        router.push('/login')
+        return
+      }
+      setUserId(data.session.user.id)
+    } catch (err) {
+      console.error('Auth error:', err)
+      router.push('/login')
+    }
+  }
+
+  async function loadAnalytics() {
+    if (!userId) return
+    
+    setLoading(true)
+    try {
+      // Calculate date range
+      const now = new Date()
+      let startDate = new Date()
+      
+      if (timeRange === 'week') {
+        startDate.setDate(now.getDate() - 7)
+      } else if (timeRange === 'month') {
+        startDate.setMonth(now.getMonth() - 1)
+      } else {
+        startDate = new Date('2020-01-01') // All time
+      }
+
+      // Fetch all posts for this user in the time range
+      const { data: posts, error } = await supabase
+        .from('posts')
+        .select('*')
+        .eq('user_id', userId)
+        .gte('created_at', startDate.toISOString())
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+
+      // Calculate analytics
+      const postsByPlatform: Record<string, number> = {}
+      const postsByTone: Record<string, number> = {}
+      const postsByStyle: Record<string, number> = {}
+      let totalQuality = 0
+
+      posts?.forEach((post: Post) => {
+        // Platform counts
+        postsByPlatform[post.platform] = (postsByPlatform[post.platform] || 0) + 1
+        
+        // Tone counts
+        postsByTone[post.tone] = (postsByTone[post.tone] || 0) + 1
+        
+        // Style counts
+        postsByStyle[post.writing_style] = (postsByStyle[post.writing_style] || 0) + 1
+        
+        // Quality score
+        totalQuality += post.quality_score || 0
+      })
+
+      // Posts this week
+      const weekAgo = new Date()
+      weekAgo.setDate(now.getDate() - 7)
+      const postsThisWeek = posts?.filter(
+        (p: Post) => new Date(p.created_at) >= weekAgo
+      ).length || 0
+
+      // Posts this month
+      const monthAgo = new Date()
+      monthAgo.setMonth(now.getMonth() - 1)
+      const postsThisMonth = posts?.filter(
+        (p: Post) => new Date(p.created_at) >= monthAgo
+      ).length || 0
+
+      setData({
+        totalPosts: posts?.length || 0,
+        postsThisMonth,
+        postsThisWeek,
+        postsByPlatform,
+        postsByTone,
+        postsByStyle,
+        averageQuality: posts?.length ? totalQuality / posts.length : 0,
+        recentPosts: posts?.slice(0, 10) || []
+      })
+
+    } catch (err) {
+      console.error('Analytics error:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function deletePost(postId: string) {
+    if (!confirm('Are you sure you want to delete this post?')) return
+
+    try {
+      await supabase.from('posts').delete().eq('id', postId)
+      analytics.track('post_deleted', { postId })
+      loadAnalytics() // Reload data
+    } catch (err) {
+      console.error('Delete error:', err)
+      alert('Failed to delete post')
+    }
+  }
+
+  function copyPost(content: string) {
+    navigator.clipboard.writeText(content)
+    analytics.track('post_copied_from_analytics', {})
+    alert('✅ Copied to clipboard!')
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex items-center justify-center">
+        <div className="text-2xl font-bold text-gray-700">Loading analytics...</div>
+      </div>
+    )
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
       <Navigation />
 
-      <main className="max-w-7xl mx-auto px-6 py-12">
-        <div className="mb-8">
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">📊 Analytics Dashboard</h2>
-          <p className="text-gray-600">Track your content performance and insights</p>
-        </div>
-
-        {/* Overview Stats */}
-        <div className="grid md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-xl shadow-lg p-6">
-            <div className="text-3xl mb-2">📝</div>
-            <div className="text-3xl font-bold text-gray-900">{stats.totalPosts}</div>
-            <div className="text-sm text-gray-600">Total Posts Generated</div>
-          </div>
-          <div className="bg-white rounded-xl shadow-lg p-6">
-            <div className="text-3xl mb-2">📅</div>
-            <div className="text-3xl font-bold text-gray-900">{stats.thisMonth}</div>
-            <div className="text-sm text-gray-600">Posts This Month</div>
-          </div>
-          <div className="bg-white rounded-xl shadow-lg p-6">
-            <div className="text-3xl mb-2">⭐</div>
-            <div className="text-3xl font-bold text-gray-900">{stats.avgQuality}</div>
-            <div className="text-sm text-gray-600">Avg Quality Score</div>
-          </div>
-          <div className="bg-white rounded-xl shadow-lg p-6">
-            <div className="text-3xl mb-2">🎯</div>
-            <div className="text-3xl font-bold text-gray-900">{Object.keys(stats.platforms).length}</div>
-            <div className="text-sm text-gray-600">Platforms Used</div>
-          </div>
-        </div>
-
-        <div className="grid lg:grid-cols-2 gap-8">
-          {/* Platform Distribution */}
-          <div className="bg-white rounded-2xl shadow-xl p-8">
-            <h3 className="text-xl font-bold text-gray-900 mb-6">📱 Platform Distribution</h3>
-            <div className="space-y-4">
-              {Object.entries(stats.platforms).map(([platform, count]: any) => {
-                const percentage = (count / stats.totalPosts) * 100
-                return (
-                  <div key={platform}>
-                    <div className="flex justify-between mb-2">
-                      <span className="font-medium text-gray-700 capitalize">{platform}</span>
-                      <span className="text-gray-600">{count} posts ({percentage.toFixed(0)}%)</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-3">
-                      <div
-                        className="bg-gradient-to-r from-blue-600 to-purple-600 h-3 rounded-full transition-all"
-                        style={{ width: `${percentage}%` }}
-                      ></div>
-                    </div>
-                  </div>
-                )
-              })}
+      <main className="w-full px-4 sm:px-6 py-8 sm:py-12">
+        <div className="max-w-7xl mx-auto">
+          {/* Header */}
+          <div className="mb-8">
+            <div className="flex items-center gap-4 mb-4">
+              <div className="w-12 h-12 sm:w-16 sm:h-16">
+                <Image
+                  src="/alpha-wings-ai-logo.png"
+                  alt="Alpha Wings Logo"
+                  width={64}
+                  height={64}
+                  className="w-full h-full object-contain"
+                />
+              </div>
+              <div>
+                <h1 className="text-3xl sm:text-4xl font-bold text-gray-900">📊 Analytics Dashboard</h1>
+                <p className="text-gray-600">Track your content performance</p>
+              </div>
             </div>
-          </div>
 
-          {/* Tone Analysis */}
-          <div className="bg-white rounded-2xl shadow-xl p-8">
-            <h3 className="text-xl font-bold text-gray-900 mb-6">🎭 Tone Analysis</h3>
-            <div className="space-y-4">
-              {Object.entries(stats.tones).map(([tone, count]: any) => {
-                const percentage = (count / stats.totalPosts) * 100
-                return (
-                  <div key={tone}>
-                    <div className="flex justify-between mb-2">
-                      <span className="font-medium text-gray-700 capitalize">{tone}</span>
-                      <span className="text-gray-600">{count} posts ({percentage.toFixed(0)}%)</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-3">
-                      <div
-                        className="bg-gradient-to-r from-purple-600 to-pink-600 h-3 rounded-full transition-all"
-                        style={{ width: `${percentage}%` }}
-                      ></div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-
-          {/* Top Topics */}
-          <div className="bg-white rounded-2xl shadow-xl p-8">
-            <h3 className="text-xl font-bold text-gray-900 mb-6">🔥 Top Topics</h3>
-            <div className="space-y-3">
-              {stats.topTopics.map(([topic, count]: any, index: number) => (
-                <div key={topic} className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl">
-                  <div className="text-2xl font-bold text-gray-400">#{index + 1}</div>
-                  <div className="flex-1">
-                    <div className="font-medium text-gray-900">{topic}</div>
-                    <div className="text-sm text-gray-600">{count} posts</div>
-                  </div>
-                </div>
+            {/* Time Range Selector */}
+            <div className="flex gap-3">
+              {(['week', 'month', 'all'] as const).map((range) => (
+                <button
+                  key={range}
+                  onClick={() => setTimeRange(range)}
+                  className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                    timeRange === range
+                      ? 'bg-blue-600 text-white shadow-lg'
+                      : 'bg-white text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  {range === 'week' ? 'Last 7 Days' : range === 'month' ? 'Last 30 Days' : 'All Time'}
+                </button>
               ))}
             </div>
           </div>
 
-          {/* Activity Timeline */}
-          <div className="bg-white rounded-2xl shadow-xl p-8">
-            <h3 className="text-xl font-bold text-gray-900 mb-6">📈 Recent Activity</h3>
-            <div className="text-center py-12">
-              <div className="text-6xl mb-4">📊</div>
-              <h4 className="font-bold text-gray-900 mb-2">Activity Chart Coming Soon</h4>
-              <p className="text-gray-600">
-                Track your posting trends over time with interactive charts
-              </p>
+          {/* Key Metrics Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-6 text-white shadow-xl">
+              <div className="text-sm opacity-90 mb-2">Total Posts</div>
+              <div className="text-4xl font-bold">{data?.totalPosts || 0}</div>
+              <div className="text-sm opacity-75 mt-2">
+                {timeRange === 'week' ? 'This Week' : timeRange === 'month' ? 'This Month' : 'All Time'}
+              </div>
+            </div>
+
+            <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-2xl p-6 text-white shadow-xl">
+              <div className="text-sm opacity-90 mb-2">This Week</div>
+              <div className="text-4xl font-bold">{data?.postsThisWeek || 0}</div>
+              <div className="text-sm opacity-75 mt-2">Posts generated</div>
+            </div>
+
+            <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl p-6 text-white shadow-xl">
+              <div className="text-sm opacity-90 mb-2">Avg Quality</div>
+              <div className="text-4xl font-bold">{data?.averageQuality.toFixed(1) || 0}/10</div>
+              <div className="text-sm opacity-75 mt-2">Content score</div>
+            </div>
+
+            <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl p-6 text-white shadow-xl">
+              <div className="text-sm opacity-90 mb-2">This Month</div>
+              <div className="text-4xl font-bold">{data?.postsThisMonth || 0}</div>
+              <div className="text-sm opacity-75 mt-2">Posts generated</div>
             </div>
           </div>
-        </div>
 
-        {/* Performance Insights */}
-        <div className="mt-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-8 text-white">
-          <h3 className="text-2xl font-bold mb-4">💡 Performance Insights</h3>
-          <div className="grid md:grid-cols-3 gap-6">
-            <div>
-              <div className="text-3xl mb-2">🚀</div>
-              <div className="font-bold mb-1">Keep It Up!</div>
-              <div className="text-blue-100 text-sm">
-                You're consistently creating quality content
+          {/* Charts Row */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            {/* Posts by Platform */}
+            <div className="bg-white rounded-2xl shadow-xl p-6">
+              <h3 className="text-xl font-bold mb-4 text-gray-900">📱 By Platform</h3>
+              <div className="space-y-3">
+                {Object.entries(data?.postsByPlatform || {}).map(([platform, count]) => (
+                  <div key={platform} className="flex items-center justify-between">
+                    <span className="capitalize font-medium text-gray-700">{platform}</span>
+                    <div className="flex items-center gap-3">
+                      <div className="w-32 bg-gray-200 rounded-full h-3">
+                        <div
+                          className="bg-blue-600 h-3 rounded-full transition-all"
+                          style={{ width: `${(count / (data?.totalPosts || 1)) * 100}%` }}
+                        />
+                      </div>
+                      <span className="font-bold text-gray-900 w-8">{count}</span>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
-            <div>
-              <div className="text-3xl mb-2">🎯</div>
-              <div className="font-bold mb-1">Diversify Platforms</div>
-              <div className="text-blue-100 text-sm">
-                Consider posting to more platforms for better reach
+
+            {/* Posts by Tone */}
+            <div className="bg-white rounded-2xl shadow-xl p-6">
+              <h3 className="text-xl font-bold mb-4 text-gray-900">🎭 By Tone</h3>
+              <div className="space-y-3">
+                {Object.entries(data?.postsByTone || {})
+                  .sort((a, b) => b[1] - a[1])
+                  .slice(0, 5)
+                  .map(([tone, count]) => (
+                    <div key={tone} className="flex items-center justify-between">
+                      <span className="capitalize font-medium text-gray-700">{tone}</span>
+                      <div className="flex items-center gap-3">
+                        <div className="w-32 bg-gray-200 rounded-full h-3">
+                          <div
+                            className="bg-purple-600 h-3 rounded-full transition-all"
+                            style={{ width: `${(count / (data?.totalPosts || 1)) * 100}%` }}
+                          />
+                        </div>
+                        <span className="font-bold text-gray-900 w-8">{count}</span>
+                      </div>
+                    </div>
+                  ))}
               </div>
             </div>
-            <div>
-              <div className="text-3xl mb-2">⭐</div>
-              <div className="font-bold mb-1">High Quality</div>
-              <div className="text-blue-100 text-sm">
-                Your average quality score is {stats.avgQuality}/10
+
+            {/* Posts by Style */}
+            <div className="bg-white rounded-2xl shadow-xl p-6">
+              <h3 className="text-xl font-bold mb-4 text-gray-900">✍️ By Style</h3>
+              <div className="space-y-3">
+                {Object.entries(data?.postsByStyle || {})
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([style, count]) => (
+                    <div key={style} className="flex items-center justify-between">
+                      <span className="capitalize font-medium text-gray-700">{style}</span>
+                      <div className="flex items-center gap-3">
+                        <div className="w-32 bg-gray-200 rounded-full h-3">
+                          <div
+                            className="bg-green-600 h-3 rounded-full transition-all"
+                            style={{ width: `${(count / (data?.totalPosts || 1)) * 100}%` }}
+                          />
+                        </div>
+                        <span className="font-bold text-gray-900 w-8">{count}</span>
+                      </div>
+                    </div>
+                  ))}
               </div>
+            </div>
+          </div>
+
+          {/* Recent Posts */}
+          <div className="bg-white rounded-2xl shadow-xl p-6">
+            <h3 className="text-2xl font-bold mb-6 text-gray-900">📝 Recent Posts</h3>
+            <div className="space-y-4">
+              {data?.recentPosts.map((post) => (
+                <div key={post.id} className="border-2 border-gray-200 rounded-xl p-4 hover:border-blue-300 transition-all">
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="flex gap-2 flex-wrap">
+                      <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium capitalize">
+                        {post.platform}
+                      </span>
+                      <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-medium capitalize">
+                        {post.tone}
+                      </span>
+                      <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium capitalize">
+                        {post.writing_style}
+                      </span>
+                      <span className="px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-sm font-medium">
+                        ⭐ {post.quality_score}/10
+                      </span>
+                    </div>
+                    <span className="text-sm text-gray-500">
+                      {new Date(post.created_at).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <div className="text-gray-700 mb-3 line-clamp-3">
+                    {post.content}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => copyPost(post.content)}
+                      className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 font-medium text-sm transition-colors"
+                    >
+                      📋 Copy
+                    </button>
+                    <button
+                      onClick={() => deletePost(post.id)}
+                      className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 font-medium text-sm transition-colors"
+                    >
+                      🗑️ Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
