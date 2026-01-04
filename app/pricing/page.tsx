@@ -1,37 +1,19 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClient } from '@supabase/supabase-js'
-import { useRouter } from 'next/navigation'
 import { loadStripe } from '@stripe/stripe-js'
 import { analytics } from '@/lib/analytics'
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '')
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-)
-
 export default function PricingPage() {
-  const router = useRouter()
   const [loading, setLoading] = useState<string | null>(null)
-  const [userId, setUserId] = useState<string | null>(null)
-  const [userEmail, setUserEmail] = useState<string | null>(null)
+  const userId = '438a1d7b-a880-4956-ba3b-e6a69277019b'
 
-  // 🎯 Get real user ID from auth
+  // 🎯 Track pricing page view on mount
   useEffect(() => {
-    async function loadUser() {
-      const { data } = await supabase.auth.getSession()
-      if (data.session?.user) {
-        setUserId(data.session.user.id)
-        setUserEmail(data.session.user.email || '')
-      }
-    }
-    loadUser()
     analytics.viewPricing()
   }, [])
-
 
   const plans = [
     {
