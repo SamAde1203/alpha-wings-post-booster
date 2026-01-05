@@ -108,7 +108,7 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-4">
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
-          <div className="text-6xl mb-4">✈️</div>
+          <div className="text-6xl mb-4"></div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Alpha Wings Post Booster</h1>
           <p className="text-gray-600">Generate viral social media posts with AI</p>
         </div>

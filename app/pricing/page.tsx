@@ -69,7 +69,7 @@ export default function PricingPage() {
         'Schedule posts',
         'Brand voice training',
       ],
-      priceId: 'price_1SlDhaCsaEmlzaAVHU6w35Ht',
+      priceId: 'price_1SlWynCsaEmlzaAVoO4hiyyR',
       highlight: true,
     },
     {
@@ -88,7 +88,7 @@ export default function PricingPage() {
         'Team collaboration',
         'API access',
       ],
-      priceId: 'price_1SlDj0CsaEmlzaAVozGhgYC7',
+      priceId: 'price_1SlX0UCsaEmlzaAV8g7LOIE9',
       highlight: false,
     },
     {
@@ -109,7 +109,7 @@ export default function PricingPage() {
         'White-label option',
         'Custom integrations',
       ],
-      priceId: 'price_1SlDk9CsaEmlzaAVbEO1lJKJ',
+      priceId: 'price_1SlX1BCsaEmlzaAVFL5YZIiT',
       highlight: false,
     },
   ]
