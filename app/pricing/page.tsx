@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { useRouter } from 'next/navigation'
 import { analytics } from '@/lib/analytics'
+import { getPriceId } from '@/lib/pricing-config'
+
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -40,79 +42,80 @@ export default function PricingPage() {
   }, [])
 
   const plans = [
-    {
-      name: 'Free',
-      price: '$0',
-      period: 'forever',
-      posts: '5 posts/month',
-      priceAmount: 0,
-      features: [
-        '5 AI-generated posts',
-        'All social platforms',
-        'Basic analytics',
-        'Email support',
-      ],
-      priceId: null,
-      highlight: false,
-    },
-    {
-      name: 'Starter',
-      price: '$9.99',
-      period: '/month',
-      posts: '50 posts/month',
-      priceAmount: 9.99,
-      features: [
-        '50 AI-generated posts',
-        'All social platforms',
-        'Advanced analytics',
-        'Priority support',
-        'Schedule posts',
-        'Brand voice training',
-      ],
-      priceId: 'price_1SlWynCsaEmlzaAVoO4hiyyR',
-      highlight: true,
-    },
-    {
-      name: 'Pro',
-      price: '$29.99',
-      period: '/month',
-      posts: '200 posts/month',
-      priceAmount: 29.99,
-      features: [
-        '200 AI-generated posts',
-        'All social platforms',
-        'Premium analytics',
-        'Priority support',
-        'Schedule posts',
-        'Brand voice training',
-        'Team collaboration',
-        'API access',
-      ],
-      priceId: 'price_1SlX0UCsaEmlzaAV8g7LOIE9',
-      highlight: false,
-    },
-    {
-      name: 'Agency',
-      price: '$99.99',
-      period: '/month',
-      posts: 'Unlimited posts',
-      priceAmount: 99.99,
-      features: [
-        'Unlimited AI posts',
-        'All social platforms',
-        'Enterprise analytics',
-        'Dedicated support',
-        'Schedule posts',
-        'Brand voice training',
-        'Team collaboration',
-        'API access',
-        'White-label option',
-        'Custom integrations',
-      ],
-      priceId: 'price_1SlX1BCsaEmlzaAVFL5YZIiT',
-      highlight: false,
-    },
-  ]
+  {
+    name: 'Free',
+    price: '$0',
+    period: 'forever',
+    posts: '5 posts/month',
+    priceAmount: 0,
+    features: [
+      '5 AI-generated posts',
+      'All social platforms',
+      'Basic analytics',
+      'Email support',
+    ],
+    priceId: null,
+    highlight: false,
+  },
+  {
+    name: 'Starter',
+    price: '$9.99',
+    period: '/month',
+    posts: '50 posts/month',
+    priceAmount: 9.99,
+    features: [
+      '50 AI-generated posts',
+      'All social platforms',
+      'Advanced analytics',
+      'Priority support',
+      'Schedule posts',
+      'Brand voice training',
+    ],
+    priceId: getPriceId('starter'),
+    highlight: true,
+  },
+  {
+    name: 'Pro',
+    price: '$29.99',
+    period: '/month',
+    posts: '200 posts/month',
+    priceAmount: 29.99,
+    features: [
+      '200 AI-generated posts',
+      'All social platforms',
+      'Premium analytics',
+      'Priority support',
+      'Schedule posts',
+      'Brand voice training',
+      'Team collaboration',
+      'API access',
+    ],
+    priceId: getPriceId('pro'),
+    highlight: false,
+  },
+  {
+    name: 'Agency',
+    price: '$99.99',
+    period: '/month',
+    posts: 'Unlimited posts',
+    priceAmount: 99.99,
+    features: [
+      'Unlimited AI posts',
+      'All social platforms',
+      'Enterprise analytics',
+      'Dedicated support',
+      'Schedule posts',
+      'Brand voice training',
+      'Team collaboration',
+      'API access',
+      'White-label option',
+      'Custom integrations',
+    ],
+    priceId: getPriceId('agency'),
+    highlight: false,
+  },
+]
+
 
   async function handleSubscribe(priceId: string | null, planName: string, priceAmount: number) {
     // 🎯 Track plan click

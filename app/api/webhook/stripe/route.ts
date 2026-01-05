@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { createClient } from '@supabase/supabase-js'
+import { getPlanFromPriceId } from '@/lib/pricing-config'  // ✅ add this
 
 export const runtime = 'nodejs'
 
@@ -37,7 +38,7 @@ export async function POST(request: NextRequest) {
 
   console.log('✅ Webhook received:', event.type)
 
-  // Handle checkout completion
+  // 1) Handle checkout completion
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as Stripe.Checkout.Session
     const userId = session.metadata?.userId || session.client_reference_id
@@ -50,7 +51,6 @@ export async function POST(request: NextRequest) {
     console.log(`💳 Processing checkout for user: ${userId}`)
 
     try {
-      // Get subscription details
       const subscriptionId = session.subscription as string
       if (!subscriptionId) {
         console.error('❌ No subscription ID in session')
@@ -58,25 +58,23 @@ export async function POST(request: NextRequest) {
       }
 
       const subscription = await stripe.subscriptions.retrieve(subscriptionId)
-      const priceId = subscription.items.data[0].price.id
+      const priceId = subscription.items.data?.[0]?.price?.id
 
-      // Map price IDs to plan names (TEST MODE)
-      const planMap: Record<string, string> = {
-        'price_1SlWynCsaEmlzaAVoO4hiyyR': 'starter',
-        'price_1SlX0UCsaEmlzaAV8g7LOIE9': 'pro',
-        'price_1SlX1BCsaEmlzaAVFL5YZIiT': 'agency',
+      if (!priceId) {
+        console.error('❌ No priceId on subscription')
+        return NextResponse.json({ error: 'No priceId' }, { status: 400 })
       }
 
-      const plan = planMap[priceId] || 'free'
+      // ✅ Use your central mapping
+      const plan = getPlanFromPriceId(priceId)
 
-      console.log(`📝 Updating user ${userId} to plan: ${plan}`)
+      console.log(`📝 Updating user ${userId} to plan: ${plan} (priceId=${priceId})`)
 
-      // Update user in Supabase
       const { error } = await supabase
         .from('users')
         .update({
           subscription_tier: plan,
-          subscription_status: 'active',
+          subscription_status: subscription.status || 'active',
           stripe_subscription_id: subscriptionId,
           stripe_customer_id: session.customer as string,
         })
@@ -94,25 +92,24 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Handle subscription updates
+  // 2) Handle subscription updates
   if (event.type === 'customer.subscription.updated') {
     const subscription = event.data.object as Stripe.Subscription
     const customerId = subscription.customer as string
 
-    const { data: user } = await supabase
+    const { data: user, error: findErr } = await supabase
       .from('users')
       .select('id')
       .eq('stripe_customer_id', customerId)
-      .single()
+      .maybeSingle()
 
-    if (user) {
-      const priceId = subscription.items.data[0].price.id
-      const planMap: Record<string, string> = {
-        'price_1SlWynCsaEmlzaAVoO4hiyyR': 'starter',
-        'price_1SlX0UCsaEmlzaAV8g7LOIE9': 'pro',
-        'price_1SlX1BCsaEmlzaAVFL5YZIiT': 'agency',
-      }
-      const plan = planMap[priceId] || 'free'
+    if (findErr) {
+      console.error('❌ Supabase find user error:', findErr)
+    }
+
+    if (user?.id) {
+      const priceId = subscription.items.data?.[0]?.price?.id
+      const plan = getPlanFromPriceId(priceId)
 
       await supabase
         .from('users')
@@ -126,18 +123,22 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Handle subscription deletion
+  // 3) Handle subscription deletion
   if (event.type === 'customer.subscription.deleted') {
     const subscription = event.data.object as Stripe.Subscription
     const customerId = subscription.customer as string
 
-    const { data: user } = await supabase
+    const { data: user, error: findErr } = await supabase
       .from('users')
       .select('id')
       .eq('stripe_customer_id', customerId)
-      .single()
+      .maybeSingle()
 
-    if (user) {
+    if (findErr) {
+      console.error('❌ Supabase find user error:', findErr)
+    }
+
+    if (user?.id) {
       await supabase
         .from('users')
         .update({
