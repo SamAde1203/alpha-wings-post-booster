@@ -290,7 +290,7 @@ export default function TermsPage() {
             </p>
             <div className="bg-blue-50 rounded-lg p-4">
               <p><strong>Email:</strong> hello@alphawingsai.com</p>
-              <p><strong>Website:</strong> https://alphawings.com</p>
+              <p><strong>Website:</strong> https://alphawingsai.com</p>
               <p><strong>LinkedIn:</strong> https://www.linkedin.com/in/sam-adeyemi-ai/</p>
             </div>
           </section>

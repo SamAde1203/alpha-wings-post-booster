@@ -162,7 +162,7 @@ export default function AboutPage() {
               With experience building SaaS applications, AI-powered research tools, and automation systems, Sam created Alpha Wings to help creators and entrepreneurs amplify their voice without the content creation burden.
             </p>
             <a 
-              href="https://www.linkedin.com/in/sam-adeyemi-ai" 
+              href="https://www.linkedin.com/in/sam-adeyemi-ai/" 
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 px-6 py-3 bg-white text-blue-600 font-semibold rounded-lg hover:bg-blue-50 transition-colors"
@@ -185,7 +185,7 @@ export default function AboutPage() {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <a 
-              href="/signup"
+              href="/login"
               className="px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold rounded-lg hover:shadow-2xl transition-all text-lg"
             >
               Get Started Free

@@ -63,6 +63,7 @@ export default function Navigation() {
     { href: '/analytics', label: 'Analytics', icon: '📊' },
     { href: '/pricing', label: 'Upgrade', icon: '💎' },
     { href: '/settings', label: 'Settings', icon: '⚙️' },
+	
   ]
 
   return (
