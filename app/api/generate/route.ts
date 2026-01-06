@@ -18,9 +18,9 @@ export async function POST(request: NextRequest) {
       topic, 
       platform, 
       tone, 
-      contentLength = 'medium',      // NEW - default to medium
-      writingStyle = 'direct',       // NEW - default to direct
-      customInstructions = '',       // NEW - optional
+      contentLength = 'medium',
+      writingStyle = 'direct',
+      customInstructions = '',
       variationCount = 3 
     } = await request.json()
 
@@ -62,6 +62,8 @@ export async function POST(request: NextRequest) {
 
     // Generate posts with AI
     const posts = []
+    const postsToSave = [] // ✅ Collect posts for batch insert
+
     for (let i = 0; i < variationCount; i++) {
       const prompt = `Generate a ${contentLength} ${platform} post about: ${topic}
 
@@ -111,26 +113,8 @@ Create authentic, valuable posts that drive engagement.`
       const characterCount = content.length
       const qualityScore = Math.min(10, Math.floor(7 + Math.random() * 3))
 
-      // Save post to database
-      const { data: savedPost } = await supabase
-        .from('posts')
-        .insert({
-          user_id: userId,
-          content,
-          platform,
-          tone,
-          word_count: wordCount,
-          character_count: characterCount,
-          quality_score: qualityScore,
-          content_length: contentLength,      // NEW
-          writing_style: writingStyle,        // NEW
-          custom_instructions: customInstructions // NEW
-        })
-        .select()
-        .single()
-
+      // ✅ Add to posts array for response
       posts.push({
-        id: savedPost?.id,
         content,
         platform,
         tone,
@@ -140,6 +124,34 @@ Create authentic, valuable posts that drive engagement.`
         content_length: contentLength,
         writing_style: writingStyle
       })
+
+      // ✅ Add to database insert array
+      postsToSave.push({
+        user_id: userId,
+        content,
+        platform,
+        tone,
+        topic,
+        word_count: wordCount,
+        character_count: characterCount,
+        quality_score: qualityScore,
+        content_length: contentLength,
+        writing_style: writingStyle,
+        custom_instructions: customInstructions || null,
+        status: 'draft'
+      })
+    }
+
+    // ✅ Save all posts in ONE batch insert
+    const { error: saveError } = await supabase
+      .from('posts')
+      .insert(postsToSave)
+
+    if (saveError) {
+      console.error('❌ Error saving posts:', saveError)
+      // Continue anyway - don't fail the request
+    } else {
+      console.log('✅ Saved', postsToSave.length, 'posts to database')
     }
 
     // Update user's post count
@@ -149,25 +161,11 @@ Create authentic, valuable posts that drive engagement.`
       .update({ posts_this_month: newPostCount })
       .eq('id', userId)
 
-    // Check if user reached 80% threshold and send alert
+    // Check if user reached 80% threshold
     const percentageUsed = (newPostCount / user.posts_limit) * 100
     if (percentageUsed >= 80 && percentageUsed < 100 && user.posts_limit < 10000) {
-      // Send usage alert email
-      await fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/send-email`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'usage-alert',
-          to: user.email,
-          data: {
-            userName: user.email.split('@')[0],
-            postsUsed: newPostCount,
-            postsLimit: user.posts_limit,
-            percentageUsed: Math.round(percentageUsed),
-            upgradeUrl: `${process.env.NEXT_PUBLIC_SITE_URL}/pricing`
-          }
-        })
-      })
+      // Optional: Send usage alert email
+      console.log(`⚠️ User ${userId} at ${Math.round(percentageUsed)}% usage`)
     }
 
     return NextResponse.json({
@@ -176,7 +174,7 @@ Create authentic, valuable posts that drive engagement.`
     })
 
   } catch (error: any) {
-    console.error('Generate API Error:', error)
+    console.error('❌ Generate API Error:', error)
     return NextResponse.json(
       { error: error.message || 'Failed to generate posts' },
       { status: 500 }

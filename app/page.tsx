@@ -1,4 +1,4 @@
-// app/page.tsx - UPDATED WITH ANALYTICS TRACKING
+// app/page.tsx - UPDATED WITH CORRECT PLATFORM COUNT
 'use client'
 
 import Link from 'next/link'
@@ -69,7 +69,7 @@ export default function HomePage() {
           </h1>
           
           <p className="text-lg md:text-xl text-gray-700 mb-8 max-w-3xl mx-auto">
-            Alpha Wings Post Booster uses AI to <strong>generate, optimize, and schedule</strong> your content across 6 platforms — <strong className="text-blue-600">starting at just $9.99/month.</strong>
+            Alpha Wings Post Booster uses AI to <strong>generate, optimize, and schedule</strong> your content across <strong className="text-blue-600">LinkedIn, Twitter, Facebook & Instagram</strong> — starting at just <strong className="text-blue-600">$9.99/month.</strong>
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
@@ -181,14 +181,14 @@ export default function HomePage() {
               },
               {
                 icon: Zap,
-                title: 'Cross-Platform Adaptation',
-                desc: 'One idea becomes 6 platform-specific posts. No more copy/pasting and hoping for the best.',
+                title: 'Multi-Platform Support',
+                desc: 'One idea becomes 4 platform-specific posts for LinkedIn, Twitter, Facebook & Instagram.',
                 color: 'purple'
               },
               {
                 icon: Clock,
-                title: 'Intelligent Scheduling',
-                desc: 'Schedule posts for optimal engagement times (or let AI suggest when to post).',
+                title: 'Smart Scheduling',
+                desc: 'Schedule posts for optimal engagement times across all your connected accounts.',
                 color: 'green'
               },
             ].map((feature, i) => (
@@ -222,15 +222,15 @@ export default function HomePage() {
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[
               '🤖 AI Content Generation',
-              '📊 LinkedIn Carousel Creator',
-              '🌍 Cross-Platform Adaptation',
-              '💡 Content Ideas Generator',
+              '💼 LinkedIn Optimization',
+              '🐦 Twitter/X Integration',
+              '📘 Facebook Support',
+              '📸 Instagram Ready',
               '#️⃣ Smart Hashtag Optimization',
               '📅 Intelligent Scheduling',
-              '🎨 Visual Integration',
-              '📈 6-Platform Support',
-              '⚡ Bulk Scheduling',
-              '🔄 Content Recycling',
+              '💡 Content Ideas Generator',
+              '⚡ Bulk Post Creation',
+              '🔄 Content Variations',
               '📱 Mobile-Friendly Dashboard',
               '💰 Flexible Pricing'
             ].map((feature, i) => (
@@ -328,7 +328,7 @@ export default function HomePage() {
             View Pricing Plans →
           </Link>
           <p className="mt-6 text-white opacity-95">
-            ✅ 30-Day Money-Back Guarantee | ✅ No Monthly Fees | ✅ Own It Forever
+            ✅ 30-Day Money-Back Guarantee | ✅ Cancel Anytime | ✅ Free Plan Available
           </p>
         </div>
       </section>
@@ -344,11 +344,11 @@ export default function HomePage() {
             {[
               {
                 q: 'What plans are available?',
-                a: 'We offer 4 plans: Free (5 posts/month), Starter ($9.99/mo - 50 posts), Pro ($29.99/mo - unlimited), and Enterprise ($99.99/mo - teams). All paid plans include AI generation, multi-platform posting, and analytics.'
+                a: 'We offer 4 plans: Free (5 posts/month), Starter ($9.99/mo - 50 posts), Pro ($29.99/mo - 200 posts), and Agency ($99.99/mo - unlimited). All paid plans include AI generation, multi-platform posting, and analytics.'
               },
               {
                 q: 'Which platforms does it support?',
-                a: 'LinkedIn, Twitter/X, Facebook, Instagram, TikTok, and YouTube. That covers 99% of business-focused social media.'
+                a: 'Currently: LinkedIn, Twitter/X, Facebook, and Instagram. We focus on the platforms that matter most for business growth and content creators.'
               },
               {
                 q: 'How good is the AI content generation?',
