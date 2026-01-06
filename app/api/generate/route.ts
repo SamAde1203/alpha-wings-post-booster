@@ -60,9 +60,8 @@ export async function POST(request: NextRequest) {
       howto: 'Provide step-by-step instructions or actionable advice'
     }
 
-    // Generate posts with AI
+       // Generate posts with AI
     const posts = []
-    const postsToSave = [] // ✅ Collect posts for batch insert
 
     for (let i = 0; i < variationCount; i++) {
       const prompt = `Generate a ${contentLength} ${platform} post about: ${topic}
@@ -113,7 +112,7 @@ Create authentic, valuable posts that drive engagement.`
       const characterCount = content.length
       const qualityScore = Math.min(10, Math.floor(7 + Math.random() * 3))
 
-      // ✅ Add to posts array for response
+      // Add to response array
       posts.push({
         content,
         platform,
@@ -124,34 +123,38 @@ Create authentic, valuable posts that drive engagement.`
         content_length: contentLength,
         writing_style: writingStyle
       })
-
-      // ✅ Add to database insert array
-      postsToSave.push({
-        user_id: userId,
-        content,
-        platform,
-        tone,
-        topic,
-        word_count: wordCount,
-        character_count: characterCount,
-        quality_score: qualityScore,
-        content_length: contentLength,
-        writing_style: writingStyle,
-        custom_instructions: customInstructions || null,
-        status: 'draft'
-      })
     }
 
-    // ✅ Save all posts in ONE batch insert
-    const { error: saveError } = await supabase
+    // ✅ SAVE ALL POSTS TO DATABASE IN ONE BATCH
+    console.log('💾 Attempting to save', posts.length, 'posts to database...')
+    
+    const postsToSave = posts.map((post: any) => ({
+      user_id: userId,
+      content: post.content,
+      platform: platform,
+      tone: tone,
+      topic: topic,
+      word_count: post.word_count,
+      character_count: post.character_count,
+      quality_score: post.quality_score,
+      content_length: contentLength,
+      writing_style: writingStyle,
+      custom_instructions: customInstructions || null,
+      status: 'draft'
+    }))
+
+    const { data: savedPosts, error: saveError } = await supabase
       .from('posts')
       .insert(postsToSave)
+      .select()
 
     if (saveError) {
-      console.error('❌ Error saving posts:', saveError)
-      // Continue anyway - don't fail the request
+      console.error('❌ ERROR SAVING POSTS:', saveError)
+      console.error('❌ Error details:', JSON.stringify(saveError, null, 2))
+      // DON'T fail the request - still return generated posts
     } else {
-      console.log('✅ Saved', postsToSave.length, 'posts to database')
+      console.log('✅ SUCCESS! Saved', savedPosts?.length || 0, 'posts to database')
+      console.log('✅ Post IDs:', savedPosts?.map(p => p.id))
     }
 
     // Update user's post count
@@ -161,16 +164,10 @@ Create authentic, valuable posts that drive engagement.`
       .update({ posts_this_month: newPostCount })
       .eq('id', userId)
 
-    // Check if user reached 80% threshold
-    const percentageUsed = (newPostCount / user.posts_limit) * 100
-    if (percentageUsed >= 80 && percentageUsed < 100 && user.posts_limit < 10000) {
-      // Optional: Send usage alert email
-      console.log(`⚠️ User ${userId} at ${Math.round(percentageUsed)}% usage`)
-    }
-
     return NextResponse.json({
       posts,
-      postsRemaining: user.posts_limit - newPostCount
+      postsRemaining: user.posts_limit - newPostCount,
+      savedCount: savedPosts?.length || 0 // Add this for debugging
     })
 
   } catch (error: any) {
