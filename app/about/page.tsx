@@ -73,7 +73,7 @@ export default function AboutPage() {
               As a software developer and entrepreneur, I experienced this challenge firsthand. I saw brilliant researchers, innovative founders, and inspiring thought leaders struggle with content creation—not because they lacked expertise, but because crafting engaging social media posts is a specialized skill that takes time to master.
             </p>
             <p className="text-lg text-gray-700 leading-relaxed">
-              That's when I decided to build Alpha Wings—an AI-powered tool that removes the friction from content creation, letting you focus on what you do best while we handle the rest.
+              That's when I decided to build Alpha Wings an AI-powered tool that removes the friction from content creation, letting you focus on what you do best while we handle the rest.
             </p>
           </div>
         </div>
