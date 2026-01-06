@@ -3,166 +3,134 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { useRouter } from 'next/navigation'
-import Image from 'next/image'
 import Navigation from '@/components/Navigation'
 import { analytics } from '@/lib/analytics'
+import { TrendingUp, Eye, Heart, MessageCircle, Share2, Target, Award, Calendar } from 'lucide-react'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 )
 
-interface Post {
-  id: string
-  content: string
-  platform: string
-  tone: string
-  writing_style: string
-  content_length: string
-  word_count: number
-  quality_score: number
-  created_at: string
-}
-
-interface AnalyticsData {
-  totalPosts: number
-  postsThisMonth: number
-  postsByPlatform: Record<string, number>
-  postsByTone: Record<string, number>
-  postsByStyle: Record<string, number>
-  averageQuality: number
-  recentPosts: Post[]
-  postsThisWeek: number
-}
-
 export default function AnalyticsPage() {
   const router = useRouter()
-  const [loading, setLoading] = useState(true)
+  const [user, setUser] = useState<any>(null)
   const [userId, setUserId] = useState<string | null>(null)
-  const [data, setData] = useState<AnalyticsData | null>(null)
-  const [timeRange, setTimeRange] = useState<'week' | 'month' | 'all'>('month')
+  const [loading, setLoading] = useState(true)
+  const [stats, setStats] = useState<any>({})
+  const [topPosts, setTopPosts] = useState<any[]>([])
+  const [recentPosts, setRecentPosts] = useState<any[]>([])
+  const [platformStats, setPlatformStats] = useState<any[]>([])
 
   useEffect(() => {
-    checkAuthAndLoadData()
-    analytics.track('analytics_page_viewed', { timestamp: new Date().toISOString() })
+    checkAuth()
+    analytics.trackEvent('analytics_page_viewed', { page: 'analytics' })
   }, [])
 
   useEffect(() => {
     if (userId) {
       loadAnalytics()
     }
-  }, [userId, timeRange])
+  }, [userId])
 
-  async function checkAuthAndLoadData() {
-    try {
-      const { data } = await supabase.auth.getSession()
-      if (!data.session?.user?.id) {
-        router.push('/login')
-        return
-      }
-      setUserId(data.session.user.id)
-    } catch (err) {
-      console.error('Auth error:', err)
+  async function checkAuth() {
+    const { data } = await supabase.auth.getSession()
+    if (!data.session?.user?.id) {
       router.push('/login')
+      return
     }
+
+    const id = data.session.user.id
+    setUserId(id)
+
+    const { data: userData } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', id)
+      .single()
+
+    setUser(userData)
   }
 
   async function loadAnalytics() {
     if (!userId) return
-    
+
     setLoading(true)
-    try {
-      // Calculate date range
-      const now = new Date()
-      let startDate = new Date()
-      
-      if (timeRange === 'week') {
-        startDate.setDate(now.getDate() - 7)
-      } else if (timeRange === 'month') {
-        startDate.setMonth(now.getMonth() - 1)
-      } else {
-        startDate = new Date('2020-01-01') // All time
-      }
 
-      // Fetch all posts for this user in the time range
-      const { data: posts, error } = await supabase
-        .from('posts')
-        .select('*')
-        .eq('user_id', userId)
-        .gte('created_at', startDate.toISOString())
-        .order('created_at', { ascending: false })
+    // Load all posts for this user
+    const { data: posts } = await supabase
+      .from('posts')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
 
-      if (error) throw error
+    if (posts) {
+      // Calculate overall stats
+      const totalPosts = posts.length
+      const postedCount = posts.filter(p => p.status === 'posted').length
+      const scheduledCount = posts.filter(p => p.status === 'scheduled').length
+      const draftCount = posts.filter(p => p.status === 'draft').length
 
-      // Calculate analytics
-      const postsByPlatform: Record<string, number> = {}
-      const postsByTone: Record<string, number> = {}
-      const postsByStyle: Record<string, number> = {}
-      let totalQuality = 0
+      // Calculate engagement (simulated for now - in production this comes from real APIs)
+      const totalViews = posts.reduce((sum, p) => sum + (p.views || 0), 0)
+      const totalLikes = posts.reduce((sum, p) => sum + (p.likes || 0), 0)
+      const totalComments = posts.reduce((sum, p) => sum + (p.comments || 0), 0)
+      const totalShares = posts.reduce((sum, p) => sum + (p.shares || 0), 0)
 
-      posts?.forEach((post: Post) => {
-        // Platform counts
-        postsByPlatform[post.platform] = (postsByPlatform[post.platform] || 0) + 1
-        
-        // Tone counts
-        postsByTone[post.tone] = (postsByTone[post.tone] || 0) + 1
-        
-        // Style counts
-        postsByStyle[post.writing_style] = (postsByStyle[post.writing_style] || 0) + 1
-        
-        // Quality score
-        totalQuality += post.quality_score || 0
+      setStats({
+        totalPosts,
+        postedCount,
+        scheduledCount,
+        draftCount,
+        totalViews,
+        totalLikes,
+        totalComments,
+        totalShares,
+        avgEngagement: totalPosts > 0 ? ((totalLikes + totalComments + totalShares) / totalPosts).toFixed(1) : 0
       })
 
-      // Posts this week
-      const weekAgo = new Date()
-      weekAgo.setDate(now.getDate() - 7)
-      const postsThisWeek = posts?.filter(
-        (p: Post) => new Date(p.created_at) >= weekAgo
-      ).length || 0
+      // Get top performing posts (sorted by engagement)
+      const sortedByEngagement = [...posts]
+        .filter(p => (p.likes || 0) + (p.comments || 0) + (p.shares || 0) > 0)
+        .sort((a, b) => {
+          const engagementA = (a.likes || 0) + (a.comments || 0) + (a.shares || 0)
+          const engagementB = (b.likes || 0) + (b.comments || 0) + (b.shares || 0)
+          return engagementB - engagementA
+        })
+        .slice(0, 5)
 
-      // Posts this month
-      const monthAgo = new Date()
-      monthAgo.setMonth(now.getMonth() - 1)
-      const postsThisMonth = posts?.filter(
-        (p: Post) => new Date(p.created_at) >= monthAgo
-      ).length || 0
+      setTopPosts(sortedByEngagement)
 
-      setData({
-        totalPosts: posts?.length || 0,
-        postsThisMonth,
-        postsThisWeek,
-        postsByPlatform,
-        postsByTone,
-        postsByStyle,
-        averageQuality: posts?.length ? totalQuality / posts.length : 0,
-        recentPosts: posts?.slice(0, 10) || []
-      })
+      // Get recent posts
+      setRecentPosts(posts.slice(0, 10))
 
-    } catch (err) {
-      console.error('Analytics error:', err)
-    } finally {
-      setLoading(false)
+      // Calculate platform stats
+      const platforms = ['linkedin', 'twitter', 'facebook', 'instagram']
+      const platformData = platforms.map(platform => {
+        const platformPosts = posts.filter(p => p.platform === platform)
+        const count = platformPosts.length
+        const engagement = platformPosts.reduce((sum, p) => 
+          sum + (p.likes || 0) + (p.comments || 0) + (p.shares || 0), 0
+        )
+        return {
+          platform,
+          count,
+          engagement,
+          avgEngagement: count > 0 ? (engagement / count).toFixed(1) : 0
+        }
+      }).filter(p => p.count > 0)
+
+      setPlatformStats(platformData)
     }
+
+    setLoading(false)
   }
 
-  async function deletePost(postId: string) {
-    if (!confirm('Are you sure you want to delete this post?')) return
-
-    try {
-      await supabase.from('posts').delete().eq('id', postId)
-      analytics.track('post_deleted', { postId })
-      loadAnalytics() // Reload data
-    } catch (err) {
-      console.error('Delete error:', err)
-      alert('Failed to delete post')
-    }
-  }
-
-  function copyPost(content: string) {
-    navigator.clipboard.writeText(content)
-    analytics.track('post_copied_from_analytics', {})
-    alert('✅ Copied to clipboard!')
+  const platformEmojis: Record<string, string> = {
+    linkedin: '💼',
+    twitter: '🐦',
+    facebook: '📘',
+    instagram: '📸'
   }
 
   if (loading) {
@@ -177,189 +145,242 @@ export default function AnalyticsPage() {
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
       <Navigation />
 
-      <main className="w-full px-4 sm:px-6 py-8 sm:py-12">
-        <div className="max-w-7xl mx-auto">
-          {/* Header */}
-          <div className="mb-8">
-            <div className="flex items-center gap-4 mb-4">
-              <div className="w-12 h-12 sm:w-16 sm:h-16">
-                <Image
-                  src="/alpha-wings-ai-logo.png"
-                  alt="Alpha Wings Logo"
-                  width={64}
-                  height={64}
-                  className="w-full h-full object-contain"
-                />
-              </div>
-              <div>
-                <h1 className="text-3xl sm:text-4xl font-bold text-gray-900">📊 Analytics Dashboard</h1>
-                <p className="text-gray-600">Track your content performance</p>
-              </div>
-            </div>
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-2">
+            📊 Analytics Dashboard
+          </h1>
+          <p className="text-lg text-gray-600">
+            Track your content performance and engagement
+          </p>
+        </div>
 
-            {/* Time Range Selector */}
-            <div className="flex gap-3">
-              {(['week', 'month', 'all'] as const).map((range) => (
-                <button
-                  key={range}
-                  onClick={() => setTimeRange(range)}
-                  className={`px-4 py-2 rounded-lg font-medium transition-all ${
-                    timeRange === range
-                      ? 'bg-blue-600 text-white shadow-lg'
-                      : 'bg-white text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  {range === 'week' ? 'Last 7 Days' : range === 'month' ? 'Last 30 Days' : 'All Time'}
-                </button>
-              ))}
+        {/* Notice for simulated data */}
+        <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 mb-8">
+          <p className="text-sm text-blue-800">
+            <strong>📌 Note:</strong> Real-time engagement metrics will be available once you connect your social media accounts and enable auto-posting. For now, analytics show post creation statistics.
+          </p>
+        </div>
+
+        {/* Key Metrics */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <div className="flex items-center gap-3 mb-2">
+              <TrendingUp className="h-8 w-8 text-blue-600" />
+              <div className="text-3xl font-bold text-gray-900">{stats.totalPosts}</div>
+            </div>
+            <div className="text-sm text-gray-600">Total Posts</div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <div className="flex items-center gap-3 mb-2">
+              <Eye className="h-8 w-8 text-purple-600" />
+              <div className="text-3xl font-bold text-gray-900">{stats.totalViews}</div>
+            </div>
+            <div className="text-sm text-gray-600">Total Views</div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <div className="flex items-center gap-3 mb-2">
+              <Heart className="h-8 w-8 text-red-600" />
+              <div className="text-3xl font-bold text-gray-900">{stats.totalLikes}</div>
+            </div>
+            <div className="text-sm text-gray-600">Total Likes</div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <div className="flex items-center gap-3 mb-2">
+              <MessageCircle className="h-8 w-8 text-green-600" />
+              <div className="text-3xl font-bold text-gray-900">{stats.totalComments}</div>
+            </div>
+            <div className="text-sm text-gray-600">Comments</div>
+          </div>
+        </div>
+
+        {/* Status Overview */}
+        <div className="grid md:grid-cols-3 gap-6 mb-8">
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-gray-900">📄 Draft</h3>
+              <span className="text-2xl font-bold text-gray-700">{stats.draftCount}</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div 
+                className="bg-gray-600 h-2 rounded-full" 
+                style={{ width: `${stats.totalPosts > 0 ? (stats.draftCount / stats.totalPosts * 100) : 0}%` }}
+              ></div>
             </div>
           </div>
 
-          {/* Key Metrics Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-6 text-white shadow-xl">
-              <div className="text-sm opacity-90 mb-2">Total Posts</div>
-              <div className="text-4xl font-bold">{data?.totalPosts || 0}</div>
-              <div className="text-sm opacity-75 mt-2">
-                {timeRange === 'week' ? 'This Week' : timeRange === 'month' ? 'This Month' : 'All Time'}
-              </div>
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-gray-900">⏰ Scheduled</h3>
+              <span className="text-2xl font-bold text-blue-700">{stats.scheduledCount}</span>
             </div>
-
-            <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-2xl p-6 text-white shadow-xl">
-              <div className="text-sm opacity-90 mb-2">This Week</div>
-              <div className="text-4xl font-bold">{data?.postsThisWeek || 0}</div>
-              <div className="text-sm opacity-75 mt-2">Posts generated</div>
-            </div>
-
-            <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl p-6 text-white shadow-xl">
-              <div className="text-sm opacity-90 mb-2">Avg Quality</div>
-              <div className="text-4xl font-bold">{data?.averageQuality.toFixed(1) || 0}/10</div>
-              <div className="text-sm opacity-75 mt-2">Content score</div>
-            </div>
-
-            <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl p-6 text-white shadow-xl">
-              <div className="text-sm opacity-90 mb-2">This Month</div>
-              <div className="text-4xl font-bold">{data?.postsThisMonth || 0}</div>
-              <div className="text-sm opacity-75 mt-2">Posts generated</div>
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div 
+                className="bg-blue-600 h-2 rounded-full" 
+                style={{ width: `${stats.totalPosts > 0 ? (stats.scheduledCount / stats.totalPosts * 100) : 0}%` }}
+              ></div>
             </div>
           </div>
 
-          {/* Charts Row */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-            {/* Posts by Platform */}
-            <div className="bg-white rounded-2xl shadow-xl p-6">
-              <h3 className="text-xl font-bold mb-4 text-gray-900">📱 By Platform</h3>
-              <div className="space-y-3">
-                {Object.entries(data?.postsByPlatform || {}).map(([platform, count]) => (
-                  <div key={platform} className="flex items-center justify-between">
-                    <span className="capitalize font-medium text-gray-700">{platform}</span>
-                    <div className="flex items-center gap-3">
-                      <div className="w-32 bg-gray-200 rounded-full h-3">
-                        <div
-                          className="bg-blue-600 h-3 rounded-full transition-all"
-                          style={{ width: `${(count / (data?.totalPosts || 1)) * 100}%` }}
-                        />
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-gray-900">✅ Posted</h3>
+              <span className="text-2xl font-bold text-green-700">{stats.postedCount}</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div 
+                className="bg-green-600 h-2 rounded-full" 
+                style={{ width: `${stats.totalPosts > 0 ? (stats.postedCount / stats.totalPosts * 100) : 0}%` }}
+              ></div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid lg:grid-cols-2 gap-8">
+          {/* Platform Performance */}
+          <div className="bg-white rounded-2xl shadow-xl p-6">
+            <h3 className="text-xl font-bold text-gray-900 mb-6">
+              🎯 Platform Performance
+            </h3>
+
+            {platformStats.length === 0 ? (
+              <div className="text-center py-8">
+                <Target className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                <p className="text-gray-600">No platform data yet</p>
+                <a href="/dashboard" className="text-blue-600 hover:underline text-sm mt-2 inline-block">
+                  Generate your first post
+                </a>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {platformStats.map((platform) => (
+                  <div key={platform.platform} className="p-4 bg-gray-50 rounded-xl">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-2xl">{platformEmojis[platform.platform]}</span>
+                        <span className="font-bold text-gray-900 capitalize">{platform.platform}</span>
                       </div>
-                      <span className="font-bold text-gray-900 w-8">{count}</span>
+                      <span className="text-sm font-medium text-gray-600">
+                        {platform.count} posts
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-4 text-sm text-gray-600">
+                      <span>📊 Avg Engagement: {platform.avgEngagement}</span>
+                      <span>💬 Total: {platform.engagement}</span>
                     </div>
                   </div>
                 ))}
               </div>
-            </div>
-
-            {/* Posts by Tone */}
-            <div className="bg-white rounded-2xl shadow-xl p-6">
-              <h3 className="text-xl font-bold mb-4 text-gray-900">🎭 By Tone</h3>
-              <div className="space-y-3">
-                {Object.entries(data?.postsByTone || {})
-                  .sort((a, b) => b[1] - a[1])
-                  .slice(0, 5)
-                  .map(([tone, count]) => (
-                    <div key={tone} className="flex items-center justify-between">
-                      <span className="capitalize font-medium text-gray-700">{tone}</span>
-                      <div className="flex items-center gap-3">
-                        <div className="w-32 bg-gray-200 rounded-full h-3">
-                          <div
-                            className="bg-purple-600 h-3 rounded-full transition-all"
-                            style={{ width: `${(count / (data?.totalPosts || 1)) * 100}%` }}
-                          />
-                        </div>
-                        <span className="font-bold text-gray-900 w-8">{count}</span>
-                      </div>
-                    </div>
-                  ))}
-              </div>
-            </div>
-
-            {/* Posts by Style */}
-            <div className="bg-white rounded-2xl shadow-xl p-6">
-              <h3 className="text-xl font-bold mb-4 text-gray-900">✍️ By Style</h3>
-              <div className="space-y-3">
-                {Object.entries(data?.postsByStyle || {})
-                  .sort((a, b) => b[1] - a[1])
-                  .map(([style, count]) => (
-                    <div key={style} className="flex items-center justify-between">
-                      <span className="capitalize font-medium text-gray-700">{style}</span>
-                      <div className="flex items-center gap-3">
-                        <div className="w-32 bg-gray-200 rounded-full h-3">
-                          <div
-                            className="bg-green-600 h-3 rounded-full transition-all"
-                            style={{ width: `${(count / (data?.totalPosts || 1)) * 100}%` }}
-                          />
-                        </div>
-                        <span className="font-bold text-gray-900 w-8">{count}</span>
-                      </div>
-                    </div>
-                  ))}
-              </div>
-            </div>
+            )}
           </div>
 
-          {/* Recent Posts */}
+          {/* Top Performing Posts */}
           <div className="bg-white rounded-2xl shadow-xl p-6">
-            <h3 className="text-2xl font-bold mb-6 text-gray-900">📝 Recent Posts</h3>
-            <div className="space-y-4">
-              {data?.recentPosts.map((post) => (
-                <div key={post.id} className="border-2 border-gray-200 rounded-xl p-4 hover:border-blue-300 transition-all">
-                  <div className="flex justify-between items-start mb-3">
-                    <div className="flex gap-2 flex-wrap">
-                      <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium capitalize">
-                        {post.platform}
-                      </span>
-                      <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-medium capitalize">
-                        {post.tone}
-                      </span>
-                      <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium capitalize">
-                        {post.writing_style}
-                      </span>
-                      <span className="px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-sm font-medium">
-                        ⭐ {post.quality_score}/10
-                      </span>
+            <h3 className="text-xl font-bold text-gray-900 mb-6">
+              🏆 Top Performing Posts
+            </h3>
+
+            {topPosts.length === 0 ? (
+              <div className="text-center py-8">
+                <Award className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                <p className="text-gray-600 mb-2">No engagement data yet</p>
+                <p className="text-sm text-gray-500">
+                  Connect social accounts to track performance
+                </p>
+                <a href="/connect" className="text-blue-600 hover:underline text-sm mt-2 inline-block">
+                  Connect accounts
+                </a>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {topPosts.map((post, index) => (
+                  <div key={post.id} className="p-4 bg-gray-50 rounded-xl">
+                    <div className="flex items-start gap-3">
+                      <div className="text-2xl font-bold text-gray-400">#{index + 1}</div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-xl">{platformEmojis[post.platform]}</span>
+                          <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full capitalize">
+                            {post.platform}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-700 line-clamp-2 mb-2">
+                          {post.content}
+                        </p>
+                        <div className="flex gap-4 text-xs text-gray-600">
+                          <span>❤️ {post.likes || 0}</span>
+                          <span>💬 {post.comments || 0}</span>
+                          <span>🔄 {post.shares || 0}</span>
+                        </div>
+                      </div>
                     </div>
-                    <span className="text-sm text-gray-500">
-                      {new Date(post.created_at).toLocaleDateString()}
-                    </span>
                   </div>
-                  <div className="text-gray-700 mb-3 line-clamp-3">
-                    {post.content}
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Recent Activity */}
+        <div className="mt-8 bg-white rounded-2xl shadow-xl p-6">
+          <h3 className="text-xl font-bold text-gray-900 mb-6">
+            📅 Recent Activity
+          </h3>
+
+          {recentPosts.length === 0 ? (
+            <div className="text-center py-8">
+              <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+              <p className="text-gray-600">No posts yet</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {recentPosts.slice(0, 5).map((post) => (
+                <div key={post.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <span className="text-2xl">{platformEmojis[post.platform]}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">
+                        {post.content.substring(0, 60)}...
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {new Date(post.created_at).toLocaleDateString()} • {post.platform}
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => copyPost(post.content)}
-                      className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 font-medium text-sm transition-colors"
-                    >
-                      📋 Copy
-                    </button>
-                    <button
-                      onClick={() => deletePost(post.id)}
-                      className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 font-medium text-sm transition-colors"
-                    >
-                      🗑️ Delete
-                    </button>
-                  </div>
+                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                    post.status === 'posted' ? 'bg-green-100 text-green-700' :
+                    post.status === 'scheduled' ? 'bg-blue-100 text-blue-700' :
+                    'bg-gray-100 text-gray-700'
+                  }`}>
+                    {post.status}
+                  </span>
                 </div>
               ))}
             </div>
+          )}
+        </div>
+
+        {/* Insights */}
+        <div className="mt-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-6 text-white">
+          <h3 className="text-2xl font-bold mb-4">💡 AI Insights</h3>
+          <div className="space-y-3">
+            <p className="text-blue-100">
+              ✨ <strong>Tip:</strong> You've created {stats.totalPosts} posts! Connect your social accounts to start tracking real engagement metrics.
+            </p>
+            {stats.draftCount > 0 && (
+              <p className="text-blue-100">
+                📝 <strong>Action:</strong> You have {stats.draftCount} draft posts ready to schedule. Plan your content calendar!
+              </p>
+            )}
+            {platformStats.length > 0 && (
+              <p className="text-blue-100">
+                🎯 <strong>Performance:</strong> {platformStats[0]?.platform} is your most active platform with {platformStats[0]?.count} posts.
+              </p>
+            )}
           </div>
         </div>
       </main>
