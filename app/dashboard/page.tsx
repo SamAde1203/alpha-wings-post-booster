@@ -6,7 +6,10 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import Navigation from '@/components/Navigation'
 import { analytics } from '@/lib/analytics'
-import ConnectFacebookButton from '@/app/components/ConnectFacebookButton'
+import ConnectFacebookButton from '@/components/ConnectFacebookButton'
+
+
+
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
