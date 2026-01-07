@@ -244,7 +244,7 @@ Ready to 10x your content game? Visit alphawingsai.com
       color: 'from-blue-600 to-blue-700',
       description: 'Connect your LinkedIn profile to auto-post professional content',
       features: ['Auto-post updates', 'Schedule posts', 'Track engagement'],
-      status: 'coming_soon'
+      status: 'live'
     },
     {
       name: 'twitter',
