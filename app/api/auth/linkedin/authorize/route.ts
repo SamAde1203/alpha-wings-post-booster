@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
     linkedInAuthUrl.searchParams.append('state', userId)
 
     // Absolutely minimal scope: only posting
-    linkedInAuthUrl.searchParams.append('scope', 'w_member_social')
+    linkedInAuthUrl.searchParams.append('scope', 'w_member_social r_liteprofile')
 
     return NextResponse.json({ authUrl: linkedInAuthUrl.toString() })
   } catch (error) {
