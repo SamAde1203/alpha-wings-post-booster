@@ -58,39 +58,32 @@ export async function GET(request: NextRequest) {
 
     console.log('✅ LinkedIn access token received')
 
-    // 2) Save to database with minimal info
-    const { error: dbError } = await supabase
-      .from('social_accounts')
-      .upsert(
-        {
-          user_id: state,
-          platform: 'linkedin',
-          // No profile id available without profile scopes; store a placeholder
-          platform_user_id: null,
-          platform_username: 'LinkedIn Account',
-          access_token: tokenData.access_token,
-          refresh_token: tokenData.refresh_token,
-          token_expires_at: new Date(
-            Date.now() + (tokenData.expires_in ?? 0) * 1000
-          ).toISOString(),
-          profile_data: null,
-          is_active: true,
-        },
-        {
-          onConflict: 'user_id,platform',
-        }
-      )
-
-    if (dbError) {
-      console.error('❌ Database error:', dbError)
-      return NextResponse.redirect(
-        `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?error=database_error`
-      )
+    // Save to database with minimal info
+const { error: dbError } = await supabase
+  .from('social_accounts')
+  .upsert(
+    {
+      user_id: state,              // must match your auth user id type
+      platform: 'linkedin',
+      platform_user_id: null,      // make sure this column is nullable
+      platform_username: 'LinkedIn Account',
+      access_token: tokenData.access_token,
+      refresh_token: tokenData.refresh_token ?? null,
+      token_expires_at: tokenData.expires_in
+        ? new Date(Date.now() + tokenData.expires_in * 1000).toISOString()
+        : null,
+      profile_data: null,
+      is_active: true,
+    },
+    {
+      onConflict: 'user_id,platform',
     }
+  )
 
-    console.log('✅ LinkedIn account saved to database')
-
-    return NextResponse.redirect(
+if (dbError) {
+  console.error('❌ Database error (LinkedIn):', dbError)
+ 
+ return NextResponse.redirect(
       `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?success=linkedin_connected`
     )
   } catch (err) {
