@@ -83,23 +83,6 @@ const fullName = `${firstName} ${lastName}`.trim() || 'LinkedIn User'
 
 console.log('✅ LinkedIn profile received:', fullName)
 
-// Update the database save to use correct field names
-const { error: dbError } = await supabase
-  .from('social_accounts')
-  .upsert({
-    user_id: state,
-    platform: 'linkedin',
-    platform_user_id: profileData.id, // Changed from profileData.sub
-    platform_username: fullName,      // Changed from profileData.name
-    access_token: tokenData.access_token,
-    refresh_token: tokenData.refresh_token,
-    token_expires_at: new Date(Date.now() + tokenData.expires_in * 1000).toISOString(),
-    profile_data: profileData,
-    is_active: true,
-  }, {
-    onConflict: 'user_id,platform'
-  })
-
     // Save to database
     const { error: dbError } = await supabase
       .from('social_accounts')
