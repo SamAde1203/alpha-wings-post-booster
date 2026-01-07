@@ -14,8 +14,11 @@ export async function POST(request: NextRequest) {
     linkedInAuthUrl.searchParams.append('redirect_uri', process.env.LINKEDIN_REDIRECT_URI!)
     linkedInAuthUrl.searchParams.append('state', userId)
 
-    // Only request the scope you actually have via Share on LinkedIn
-    linkedInAuthUrl.searchParams.append('scope', 'w_member_social')
+    // OpenID + posting scope (this combo is what many devs use successfully) [web:736][web:724]
+    linkedInAuthUrl.searchParams.append(
+      'scope',
+      'openid profile email w_member_social'
+    )
 
     return NextResponse.json({ authUrl: linkedInAuthUrl.toString() })
   } catch (error) {
