@@ -367,28 +367,20 @@ async function loadScheduledPosts() {
   if (!userId) return
   
   const { data } = await supabase
-    .from('scheduled_posts')  // Corrected: was 'posts'
-    .select(`
-      *,
-      generated_posts:post_id (content, platform, tone)
-    `)
+    .from('posts')  // CHANGED: was 'scheduled_posts'
+    .select('*')
     .eq('user_id', userId)
-    .order('scheduled_time', { ascending: false })  // Corrected: was 'scheduled_at'
+    .in('status', ['scheduled', 'pending'])  // UPDATED: status values
+    .order('scheduled_at', { ascending: false })  // CHANGED: column name
     .limit(20)
   
   if (data) {
-    // Format data to include content
-    const formattedData = data.map(post => ({
-      ...post,
-      content: post.generated_posts?.content || '',
-      platform: post.platform,
-      scheduled_at: post.scheduled_time  // Alias for display
-    }))
-    setScheduledPosts(formattedData)
+    setScheduledPosts(data)
   }
 }
 
 // Schedule post
+
 async function handleSchedulePost() {
   if (!customPost.trim() || !scheduleDate || !scheduleTime || !userId) {
     alert('Please write a post and select date/time')
@@ -399,32 +391,16 @@ async function handleSchedulePost() {
   try {
     const scheduledAt = new Date(`${scheduleDate}T${scheduleTime}:00Z`)
     
-    // 1. First save the post content to generated_posts
-    const { data: postData, error: postError } = await supabase
-      .from('generated_posts')
-      .insert({
-        user_id: userId,
-        content: customPost,
-        platform: platform,  // Use selected platform, not hardcoded
-        tone: 'custom',
-        created_at: new Date().toISOString()
-      })
-      .select('id')
-      .single()
+    // REMOVED: generated_posts insertion
+    // ADDED: Direct API call with content
     
-    if (postError) {
-      console.error('Failed to save post:', postError)
-      throw new Error(`Failed to save post: ${postError.message}`)
-    }
-    
-    // 2. Then schedule it with the API
     const response = await fetch('/api/queue-post', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         userId,
-        postId: postData.id,  // Pass post ID, not content
-        platform: platform,    // Use selected platform
+        content: customPost,  // CHANGED: Send content directly
+        platform: platform,   // Uses selected platform
         scheduledAt: scheduledAt.toISOString()
       })
     })
@@ -432,7 +408,7 @@ async function handleSchedulePost() {
     const data = await response.json()
     
     if (!data.success) {
-      throw new Error(data.error || 'Failed to schedule')
+      throw new Error(data.error)
     }
     
     alert(`✅ ${data.message}`)
@@ -441,7 +417,6 @@ async function handleSchedulePost() {
     await loadScheduledPosts()
     
   } catch (error: any) {
-    console.error('Schedule error:', error)
     alert(`Failed to schedule: ${error.message}`)
   } finally {
     setLoading(false)
@@ -453,7 +428,7 @@ async function handleDeleteScheduled(postId: string) {
   if (!confirm('Cancel this scheduled post?')) return
   
   const { error } = await supabase
-    .from('scheduled_posts')  // Corrected: was 'posts'
+    .from('posts')  // CHANGED: was 'scheduled_posts'
     .delete()
     .eq('id', postId)
   
@@ -937,8 +912,7 @@ async function handleDeleteScheduled(postId: string) {
 </button>
 
 
-
-                    {/* Generated Posts */}
+          {/* Generated Posts */}
           {posts.length > 0 && (
             <div className="space-y-4">
               <h3 className="text-xl sm:text-2xl font-bold text-gray-900">Your Generated Posts</h3>
@@ -946,7 +920,7 @@ async function handleDeleteScheduled(postId: string) {
                 <div key={i} className="bg-white rounded-2xl shadow-xl p-4 sm:p-6">
                   <div className="flex flex-col sm:flex-row justify-between items-start gap-3 sm:items-start mb-4">
                     <h4 className="font-bold text-base sm:text-lg text-gray-900">Variation {i + 1}</h4>
-                    
+
                     {/* Buttons - Copy AND Share */}
                     <div className="flex gap-2 w-full sm:w-auto">
                       <button
@@ -955,29 +929,28 @@ async function handleDeleteScheduled(postId: string) {
                       >
                         📋 Copy
                       </button>
-                      
-                      {/* Platform Selection Dropdown */}
-<select
-  onChange={(e) => {
-    if (e.target.value === 'facebook') shareToFacebook(post.content)
-    if (e.target.value === 'linkedin') shareToLinkedIn(post.content)
-    e.target.value = '' // reset
-  }}
-  disabled={loading}
-  className="flex-1 sm:flex-none px-3 sm:px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:shadow-lg transition-all font-semibold shadow-md text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
->
-  <option value="">📤 Share to...</option>
-  <option value="facebook">📘 Facebook</option>
-  <option value="linkedin">💼 LinkedIn</option>
-</select>
 
+                      {/* Platform Selection Dropdown */}
+                      <select
+                        onChange={(e) => {
+                          if (e.target.value === 'facebook') shareToFacebook(post.content)
+                          if (e.target.value === 'linkedin') shareToLinkedIn(post.content)
+                          e.target.value = '' // reset
+                        }}
+                        disabled={loading}
+                        className="flex-1 sm:flex-none px-3 sm:px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:shadow-lg transition-all font-semibold shadow-md text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                      >
+                        <option value="">📤 Share to...</option>
+                        <option value="facebook">📘 Facebook</option>
+                        <option value="linkedin">💼 LinkedIn</option>
+                      </select>
                     </div>
                   </div>
-                  
+
                   <div className="p-3 sm:p-4 bg-gray-50 rounded-xl mb-4 overflow-x-auto">
                     <pre className="whitespace-pre-wrap font-sans text-xs sm:text-sm text-gray-800">{post.content}</pre>
                   </div>
-                  
+
                   <div className="flex flex-col sm:flex-row gap-3 sm:gap-6 text-xs sm:text-sm text-gray-600">
                     <span>📝 {post.word_count} words</span>
                     <span>🔤 {post.character_count} characters</span>
@@ -989,14 +962,21 @@ async function handleDeleteScheduled(postId: string) {
             </div>
           )}
 
-		  
-        {/* Custom Post Section - ADD THIS HERE! */}
+          {/* Debug button */}
+          <button
+            onClick={debugSchedule}
+            className="px-4 py-2 bg-orange-500 text-white rounded mt-4"
+          >
+            🐛 Debug Save
+          </button>
+
+          {/* Custom Post Section */}
           <div className="bg-white rounded-xl shadow-lg p-6 mt-8">
             <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
               <span>✍️</span>
               <span>Write Custom Post</span>
             </h3>
-            
+
             <div className="space-y-4">
               <textarea
                 value={customPost}
@@ -1005,12 +985,12 @@ async function handleDeleteScheduled(postId: string) {
                 className="w-full h-32 p-4 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none resize-none"
                 maxLength={2000}
               />
-              
+
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-500">
                   {customPost.length}/2000 characters
                 </span>
-                
+
                 <div className="flex gap-3">
                   <button
                     onClick={() => setCustomPost('')}
@@ -1018,7 +998,7 @@ async function handleDeleteScheduled(postId: string) {
                   >
                     Clear
                   </button>
-                  
+
                   <button
                     onClick={shareCustomPost}
                     disabled={!customPost.trim() || loading}
@@ -1031,114 +1011,122 @@ async function handleDeleteScheduled(postId: string) {
             </div>
           </div>
 
+          {/* POST SCHEDULER - NEW SECTION */}
+          <div className="bg-white rounded-xl shadow-lg p-6 mt-8">
+            <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+              <span>📅</span>
+              <span>Schedule Posts</span>
+            </h3>
+
+            <div className="space-y-4">
+              {/* Date/Time Picker */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Date</label>
+                  <input
+                    type="date"
+                    value={scheduleDate}
+                    onChange={(e) => setScheduleDate(e.target.value)}
+                    min={new Date().toISOString().split('T')[0]}
+                    className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Time (GMT)</label>
+                  <input
+                    type="time"
+                    value={scheduleTime}
+                    onChange={(e) => setScheduleTime(e.target.value)}
+                    className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Schedule Preview */}
+              {scheduleDate && scheduleTime && (
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm text-gray-700">
+                    📌 Will post on: <strong>{new Date(`${scheduleDate}T${scheduleTime}`).toLocaleString()}</strong>
+                  </p>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex gap-3">
+                <button
+                  onClick={handleSchedulePost}
+                  disabled={!customPost.trim() || !scheduleDate || !scheduleTime || loading}
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:shadow-lg transition-all text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? '⏳ Scheduling...' : '📅 Schedule Post'}
+                </button>
+
+                <button
+                  onClick={shareCustomPost}
+                  disabled={!customPost.trim() || loading}
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-lg hover:shadow-lg transition-all text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? '⏳ Posting...' : '🚀 Post Now'}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* SCHEDULED POSTS LIST */}
+          <div className="bg-white rounded-xl shadow-lg p-6 mt-8">
+            <h3 className="text-xl font-bold mb-4">📋 Scheduled Posts ({scheduledPosts.length})</h3>
+
+            {scheduledPosts.length === 0 ? (
+              <p className="text-gray-500 text-center py-8">No scheduled posts yet</p>
+            ) : (
+              <div className="space-y-3">
+                {scheduledPosts.map((post) => (
+                  <div key={post.id} className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors">
+                    <div className="flex justify-between items-start gap-4">
+                      <div className="flex-1">
+                        <p className="text-sm text-gray-700 line-clamp-2 mb-2">
+                          {post.content || 'No content available'}
+                        </p>
+                        <div className="flex items-center gap-4 text-xs text-gray-500">
+                          <span>📅 {new Date(post.scheduled_at).toLocaleString()}</span>
+                          <span className={`px-2 py-1 rounded ${
+                            post.status === 'scheduled' || post.status === 'pending'
+                              ? 'bg-blue-100 text-blue-700' :
+                            post.status === 'published' ? 'bg-green-100 text-green-700' :
+                            'bg-red-100 text-red-700'
+                          }`}>
+                            {post.status}
+                          </span>
+                          <span>🌐 {post.platform}</span>
+                          {post.posted_at && (
+                            <span className="text-green-600">
+                              ✅ Posted {new Date(post.posted_at).toLocaleDateString()}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {(post.status === 'scheduled' || post.status === 'pending') && (
+                        <button
+                          onClick={() => handleDeleteScheduled(post.id)}
+                          className="px-3 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 text-xs font-semibold"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
         </div>
       </main>
     </div>
   )
 }
-
-{/* POST SCHEDULER - NEW SECTION */}
-<div className="bg-white rounded-xl shadow-lg p-6 mt-8">
-  <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-    <span>📅</span>
-    <span>Schedule Posts</span>
-  </h3>
-  
-  <div className="space-y-4">
-    {/* Date/Time Picker */}
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div>
-        <label className="block text-sm font-medium mb-2">Date</label>
-        <input
-          type="date"
-          value={scheduleDate}
-          onChange={(e) => setScheduleDate(e.target.value)}
-          min={new Date().toISOString().split('T')[0]}
-          className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
-        />
-      </div>
-      
-      <div>
-        <label className="block text-sm font-medium mb-2">Time (GMT)</label>
-        <input
-          type="time"
-          value={scheduleTime}
-          onChange={(e) => setScheduleTime(e.target.value)}
-          className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
-        />
-      </div>
-    </div>
-
-    {/* Schedule Preview */}
-    {scheduleDate && scheduleTime && (
-      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-        <p className="text-sm text-gray-700">
-          📌 Will post on: <strong>{new Date(`${scheduleDate}T${scheduleTime}`).toLocaleString()}</strong>
-        </p>
-      </div>
-    )}
-
-    {/* Action Buttons */}
-    <div className="flex gap-3">
-      <button
-        onClick={handleSchedulePost}
-        disabled={!customPost.trim() || !scheduleDate || !scheduleTime || loading}
-        className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:shadow-lg transition-all text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        {loading ? '⏳ Scheduling...' : '📅 Schedule Post'}
-      </button>
-      
-      <button
-        onClick={shareCustomPost}
-        disabled={!customPost.trim() || loading}
-        className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-lg hover:shadow-lg transition-all text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        {loading ? '⏳ Posting...' : '🚀 Post Now'}
-      </button>
-    </div>
-  </div>
-</div>
-
-{/* SCHEDULED POSTS LIST */}
-<div className="bg-white rounded-xl shadow-lg p-6 mt-8">
-  <h3 className="text-xl font-bold mb-4">📋 Scheduled Posts ({scheduledPosts.length})</h3>
-  
-  {scheduledPosts.length === 0 ? (
-    <p className="text-gray-500 text-center py-8">No scheduled posts yet</p>
-  ) : (
-    <div className="space-y-3">
-      {scheduledPosts.map((post) => (
-        <div key={post.id} className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors">
-          <div className="flex justify-between items-start gap-4">
-            <div className="flex-1">
-              <p className="text-sm text-gray-700 line-clamp-2 mb-2">{post.content}</p>
-              <div className="flex items-center gap-4 text-xs text-gray-500">
-                <span>📅 {new Date(post.scheduled_at).toLocaleString()}</span>
-                <span className={`px-2 py-1 rounded ${
-                  post.status === 'scheduled' ? 'bg-blue-100 text-blue-700' :
-                  post.status === 'published' ? 'bg-green-100 text-green-700' :
-                  'bg-red-100 text-red-700'
-                }`}>
-                  {post.status}
-                </span>
-              </div>
-            </div>
-            
-            {post.status === 'scheduled' && (
-              <button
-                onClick={() => handleDeleteScheduled(post.id)}
-                className="px-3 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 text-xs font-semibold"
-              >
-                Cancel
-              </button>
-            )}
-          </div>
-        </div>
-      ))}
-    </div>
-  )}
-</div>
-
 
 // Main component with Suspense wrapper
 export default function Dashboard() {
