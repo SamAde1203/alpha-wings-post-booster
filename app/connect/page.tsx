@@ -72,10 +72,10 @@ export default function ConnectPage() {
 
     setLoading(true)
     const { data, error } = await supabase
-      .from('social_accounts')  // ✅ FIXED: Changed from 'social_connections'
+      .from('social_accounts')
       .select('*')
       .eq('user_id', userId)
-      .eq('is_active', true)  // ✅ ADDED: Only get active connections
+      .eq('is_active', true)
 
     if (error) {
       console.error('Error loading connections:', error)
@@ -98,7 +98,6 @@ export default function ConnectPage() {
       plan: user?.subscription_tier || 'free'
     })
 
-    // ✅ FIXED: Handle Facebook OAuth (working!)
     if (platform === 'facebook') {
       if (!userId) {
         alert('❌ Please log in first')
@@ -109,7 +108,6 @@ export default function ConnectPage() {
       return
     }
 
-    // Other platforms - coming soon
     alert(`🚀 ${platform.toUpperCase()} OAuth integration coming soon!\n\n✅ Facebook is LIVE and working!\n⏳ ${platform} launching soon!\n\nConnect Facebook to start auto-posting today!`)
   }
 
@@ -122,7 +120,7 @@ export default function ConnectPage() {
     })
 
     const { error } = await supabase
-      .from('social_accounts')  // ✅ FIXED: Changed from 'social_connections'
+      .from('social_accounts')
       .delete()
       .eq('user_id', userId)
       .eq('platform', platform)
@@ -139,15 +137,78 @@ export default function ConnectPage() {
     alert(`✅ ${platform.toUpperCase()} disconnected successfully!`)
   }
 
+  async function testFacebookPost(platform: string) {
+    if (!userId) {
+      alert('❌ Please log in first')
+      return
+    }
+
+    const confirmed = confirm(`📝 Post to your ${platform.toUpperCase()} page?\n\nMessage: "🎉 Exciting news! Alpha Wings AI Post Booster is now LIVE!..."\n\nClick OK to post now!`)
+    
+    if (!confirmed) return
+
+    analytics.trackEvent('test_post_clicked', { 
+      platform,
+      plan: user?.subscription_tier || 'free'
+    })
+
+    try {
+      const response = await fetch('/api/test-post', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: `🎉 Exciting news! Alpha Wings AI Post Booster is now LIVE!
+
+After months of development, our AI-powered content automation platform is ready to help solopreneurs, coaches, and content creators reclaim their time.
+
+✨ What we offer:
+• AI-generated posts in seconds
+• Multi-platform posting (LinkedIn, Facebook, Twitter, Instagram)
+• Smart scheduling for maximum engagement
+• Analytics to track what works
+
+This very post was automated using our system! 🚀
+
+Starting at just $9.99/month. Early adopters get 20% off with code: EARLYBIRD
+
+Ready to 10x your content game? Visit alphawingsai.com
+
+#AlphaWings #AI #ContentCreation #SocialMediaAutomation #Productivity`,
+          userId: userId
+        })
+      })
+      
+      const data = await response.json()
+      
+      if (data.success) {
+        alert(`✅ Posted successfully to ${data.page}!\n\n📊 Post ID: ${data.postId}\n\n🎉 Check your Facebook page now!`)
+        analytics.trackEvent('test_post_success', { 
+          platform,
+          page: data.page,
+          post_id: data.postId
+        })
+      } else {
+        alert(`❌ Error: ${data.error}\n\n${JSON.stringify(data.details || '', null, 2)}`)
+        analytics.error('test_post_failed', data.error, 'connect_page')
+      }
+    } catch (error) {
+      console.error('Post error:', error)
+      alert('❌ Failed to post. Check console for details.')
+      analytics.error('test_post_exception', String(error), 'connect_page')
+    }
+  }
+
   const platforms = [
     {
-      name: 'facebook',  // ✅ MOVED FACEBOOK TO TOP
+      name: 'facebook',
       displayName: 'Facebook',
       icon: '👥',
       color: 'from-blue-700 to-indigo-700',
       description: 'Connect Facebook to reach your audience (LIVE NOW!)',
       features: ['✅ Auto-post to pages', '✅ Schedule posts', '✅ Track engagement'],
-      status: 'live'  // ✅ ADDED STATUS
+      status: 'live'
     },
     {
       name: 'linkedin',
@@ -200,7 +261,6 @@ export default function ConnectPage() {
           </p>
         </div>
 
-        {/* ✅ UPDATED Info Banner */}
         <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-4 sm:p-6 text-white mb-6 sm:mb-8">
           <div className="flex flex-col sm:flex-row items-start gap-4">
             <div className="text-3xl sm:text-4xl">🚀</div>
@@ -218,12 +278,8 @@ export default function ConnectPage() {
           </div>
         </div>
 
-        {/* Connection Stats */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-6 mb-6 sm:mb-8">
-          <div 
-            className="bg-white rounded-xl shadow-lg p-4 sm:p-6 cursor-pointer hover:shadow-xl transition-shadow"
-            onClick={() => analytics.trackEvent('stats_card_clicked', { card: 'connected' })}
-          >
+          <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6">
             <div className="text-2xl sm:text-3xl mb-2">🔗</div>
             <div className="text-xl sm:text-2xl font-bold text-gray-900">
               {loading ? '...' : Object.values(connections).filter(c => c).length}
@@ -247,7 +303,6 @@ export default function ConnectPage() {
           </div>
         </div>
 
-        {/* Platform Cards */}
         <div className="grid md:grid-cols-2 gap-4 sm:gap-6">
           {platforms.map(platform => {
             const isConnected = connections[platform.name]
@@ -255,7 +310,6 @@ export default function ConnectPage() {
 
             return (
               <div key={platform.name} className="bg-white rounded-2xl shadow-xl p-6 sm:p-8 relative">
-                {/* ✅ ADDED: Live Badge */}
                 {isLive && (
                   <div className="absolute top-4 right-4 px-3 py-1 bg-green-500 text-white text-xs font-bold rounded-full">
                     LIVE
@@ -318,6 +372,16 @@ export default function ConnectPage() {
                         Connected on {new Date(isConnected.created_at).toLocaleDateString()}
                       </div>
                     </div>
+                    
+                    {platform.name === 'facebook' && (
+                      <button
+                        onClick={() => testFacebookPost(platform.name)}
+                        className="w-full py-2 sm:py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl text-sm sm:text-base font-semibold shadow-lg hover:shadow-xl transition-all"
+                      >
+                        📝 Test Post to Facebook
+                      </button>
+                    )}
+                    
                     <button
                       onClick={() => {
                         analytics.trackEvent('configure_settings_clicked', { platform: platform.name })
@@ -342,7 +406,6 @@ export default function ConnectPage() {
           })}
         </div>
 
-        {/* How It Works */}
         <div className="mt-8 sm:mt-12 bg-white rounded-2xl shadow-xl p-6 sm:p-8">
           <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4 sm:mb-6">
             🎯 How Auto-Posting Works
@@ -372,7 +435,6 @@ export default function ConnectPage() {
           </div>
         </div>
 
-        {/* Security Notice */}
         <div className="mt-6 sm:mt-8 bg-blue-50 border-2 border-blue-200 rounded-xl p-4 sm:p-6">
           <div className="flex items-start gap-3">
             <span className="text-xl sm:text-2xl">🔒</span>
