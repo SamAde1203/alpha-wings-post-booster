@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
   const code = searchParams.get('code')
-  const state = searchParams.get('state') // We'll use this to pass user_id
+  const state = searchParams.get('state') // user_id
   const error = searchParams.get('error')
   const errorDescription = searchParams.get('error_description')
 
@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
 
   console.log('🔍 Facebook Callback Hit!')
   console.log('Code:', code ? 'Present' : 'Missing')
-  console.log('State:', state)
+  console.log('State (user_id):', state || 'Missing')
 
   if (error) {
     console.error('❌ Facebook OAuth error:', error, errorDescription)
@@ -28,7 +28,18 @@ export async function GET(request: NextRequest) {
 
   if (!state) {
     console.error('❌ No state parameter (user_id missing)')
-    return NextResponse.redirect(`${appUrl}/dashboard?error=missing_user_id`)
+    return NextResponse.redirect(
+      `${appUrl}/login?error=session_expired&message=${encodeURIComponent('Session expired. Please log in and try again.')}`
+    )
+  }
+
+  // Validate UUID format
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  if (!uuidRegex.test(state)) {
+    console.error('❌ Invalid user_id format:', state)
+    return NextResponse.redirect(
+      `${appUrl}/login?error=invalid_session&message=${encodeURIComponent('Invalid session. Please log in again.')}`
+    )
   }
 
   try {
@@ -72,17 +83,21 @@ export async function GET(request: NextRequest) {
     const longTokenData = await longTokenResponse.json()
     const longLivedToken = longTokenData.access_token || access_token
     const tokenExpiry = longTokenData.expires_in || expires_in || 5184000
-    console.log('✅ Long-lived token received')
+    console.log('✅ Long-lived token received, expires in:', tokenExpiry, 'seconds')
 
     // Get user profile
     console.log('🔄 Fetching profile...')
     const profileResponse = await fetch(
       `https://graph.facebook.com/v19.0/me?fields=id,name,email,picture&access_token=${longLivedToken}`
     )
-    if (!profileResponse.ok) throw new Error('Failed to get profile')
+    if (!profileResponse.ok) {
+      const profileError = await profileResponse.json()
+      console.error('❌ Profile fetch failed:', profileError)
+      throw new Error('Failed to get profile')
+    }
     
     const profile = await profileResponse.json()
-    console.log('✅ Profile:', profile.name)
+    console.log('✅ Profile:', profile.name, profile.id)
 
     // Get pages
     console.log('🔄 Fetching pages...')
@@ -92,11 +107,11 @@ export async function GET(request: NextRequest) {
     const pagesData = await pagesResponse.json()
     console.log('✅ Pages:', pagesData.data?.length || 0)
 
-    // Use SERVICE ROLE KEY for direct database access (bypasses RLS)
+    // Use SERVICE ROLE KEY for direct database access
     console.log('🔄 Creating admin Supabase client...')
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!, // Admin key
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
       {
         auth: {
           autoRefreshToken: false,
@@ -105,7 +120,7 @@ export async function GET(request: NextRequest) {
       }
     )
 
-    const userId = state // state parameter contains user_id
+    const userId = state
 
     console.log('🔄 Saving to database for user:', userId)
     const connectionData = {
@@ -123,6 +138,14 @@ export async function GET(request: NextRequest) {
       updated_at: new Date().toISOString()
     }
 
+    console.log('📝 Connection data:', {
+      user_id: connectionData.user_id,
+      platform: connectionData.platform,
+      platform_user_id: connectionData.platform_user_id,
+      platform_username: connectionData.platform_username,
+      token_expires_at: connectionData.token_expires_at
+    })
+
     const { data: savedData, error: dbError } = await supabaseAdmin
       .from('social_accounts')
       .upsert(connectionData, {
@@ -132,11 +155,12 @@ export async function GET(request: NextRequest) {
 
     if (dbError) {
       console.error('❌ Database error:', dbError)
+      console.error('Error details:', JSON.stringify(dbError, null, 2))
       throw new Error(`Database save failed: ${dbError.message}`)
     }
 
     console.log('✅ Saved successfully!')
-    console.log('📊 Data:', savedData)
+    console.log('📊 Saved data:', savedData)
 
     return NextResponse.redirect(
       `${appUrl}/dashboard?success=facebook_connected&timestamp=${Date.now()}`
