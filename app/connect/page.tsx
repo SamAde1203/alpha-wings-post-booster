@@ -93,23 +93,50 @@ export default function ConnectPage() {
   }
 
   async function handleConnect(platform: string) {
-    analytics.trackEvent('connect_platform_clicked', { 
-      platform,
-      plan: user?.subscription_tier || 'free'
-    })
+  analytics.trackEvent('connect_platform_clicked', {
+    platform,
+    plan: user?.subscription_tier || 'free'
+  })
 
-    if (platform === 'facebook') {
-      if (!userId) {
-        alert('❌ Please log in first')
+  if (!userId) {
+    alert('❌ Please log in first')
+    return
+  }
+
+  if (platform === 'facebook') {
+    console.log('🔗 Redirecting to Facebook OAuth...')
+    window.location.href = `/api/auth/facebook?user_id=${userId}`
+    return
+  }
+
+  if (platform === 'linkedin') {
+    try {
+      const res = await fetch('/api/auth/linkedin/authorize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      })
+
+      const data = await res.json()
+
+      if (data?.authUrl) {
+        console.log('🔗 Redirecting to LinkedIn OAuth...')
+        window.location.href = data.authUrl
         return
       }
-      console.log('🔗 Redirecting to Facebook OAuth...')
-      window.location.href = `/api/auth/facebook?user_id=${userId}`
-      return
-    }
 
-    alert(`🚀 ${platform.toUpperCase()} OAuth integration coming soon!\n\n✅ Facebook is LIVE and working!\n⏳ ${platform} launching soon!\n\nConnect Facebook to start auto-posting today!`)
+      alert('❌ Failed to connect LinkedIn. Please try again.')
+    } catch (e) {
+      console.error('LinkedIn connect error:', e)
+      alert('❌ Failed to connect LinkedIn. Please try again.')
+    }
+    return
   }
+
+  alert(
+    `🚀 ${platform.toUpperCase()} OAuth integration coming soon!\n\n✅ Facebook is LIVE and working!\n⏳ ${platform} launching soon!\n\nConnect Facebook to start auto-posting today!`
+  )
+}
 
   async function handleDisconnect(platform: string) {
     if (!confirm(`Disconnect ${platform.toUpperCase()}?`)) return
