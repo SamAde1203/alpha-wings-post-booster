@@ -1,16 +1,21 @@
 'use client'
 
 import { useState } from 'react'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { createClient } from '@supabase/supabase-js'
 
 export default function ConnectFacebookButton() {
   const [isConnecting, setIsConnecting] = useState(false)
-  const supabase = createClientComponentClient()
 
   const handleConnect = async () => {
     setIsConnecting(true)
     
     try {
+      // Create Supabase client
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      )
+
       // Get current user from client-side session
       const { data: { user }, error } = await supabase.auth.getUser()
       
