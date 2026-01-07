@@ -226,45 +226,35 @@ const [generatedPosts, setGeneratedPosts] = useState<string[]>([])
   }
 
 async function shareToLinkedIn(postContent: string) {
-  if (!user?.id) {
-    alert('❌ Please log in first')
-    return
-  }
-
-  const linkedinConnection = connectedAccounts.find(acc => acc.platform === 'linkedin')
-  if (!linkedinConnection) {
-    alert('❌ Please connect LinkedIn first!\n\nGo to Connected Accounts section above.')
-    return
-  }
-
-  const confirmed = confirm('📝 Post to LinkedIn?\n\nPreview:\n' + postContent.substring(0, 200) + '...\n\nClick OK to post now!')
-  
+  const confirmed = confirm('📝 Post to LinkedIn?\n\n' + postContent.substring(0, 200) + '...')
   if (!confirmed) return
 
   setLoading(true)
 
   try {
-    const result = await postToLinkedIn(
-      linkedinConnection.access_token!,
-      postContent
-    )
-    
-    if (result.success) {
-      alert(`✅ Posted successfully to LinkedIn!\n\n📊 Post URL: ${result.url}\n\n🎉 Check your LinkedIn profile!`)
-      analytics.trackEvent('post_shared', { 
-        platform: 'linkedin',
-        source: 'dashboard',
-        post_id: result.postId
+    const response = await fetch('/api/post-to-linkedin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        userId: user?.id, 
+        postContent 
       })
+    })
+
+    const data = await response.json()
+    
+    if (data.success) {
+      alert(`✅ Posted to LinkedIn!\n\n📊 ${data.url}`)
+    } else {
+      alert(`❌ ${data.error}`)
     }
-  } catch (error: any) {
-    console.error('LinkedIn post error:', error)
-    alert(`❌ Failed to post to LinkedIn:\n\n${error.message}`)
-    analytics.error('linkedin_post_failed', error.message, 'dashboard')
+  } catch (error) {
+    alert('❌ Network error')
   } finally {
     setLoading(false)
   }
 }
+
 
 
     async function copyPost(content: string) {
