@@ -728,7 +728,7 @@ const [generatedPosts, setGeneratedPosts] = useState<string[]>([])
             </div>
           </div>
 
-          {/* Generated Posts */}
+                    {/* Generated Posts */}
           {posts.length > 0 && (
             <div className="space-y-4">
               <h3 className="text-xl sm:text-2xl font-bold text-gray-900">Your Generated Posts</h3>
@@ -736,16 +736,30 @@ const [generatedPosts, setGeneratedPosts] = useState<string[]>([])
                 <div key={i} className="bg-white rounded-2xl shadow-xl p-4 sm:p-6">
                   <div className="flex flex-col sm:flex-row justify-between items-start gap-3 sm:items-start mb-4">
                     <h4 className="font-bold text-base sm:text-lg text-gray-900">Variation {i + 1}</h4>
-                    <button
-                      onClick={() => copyPost(post.content)}
-                      className="px-3 sm:px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-semibold shadow-md hover:shadow-lg text-sm sm:text-base w-full sm:w-auto"
-                    >
-                      📋 Copy
-                    </button>
+                    
+                    {/* Buttons - Copy AND Share */}
+                    <div className="flex gap-2 w-full sm:w-auto">
+                      <button
+                        onClick={() => copyPost(post.content)}
+                        className="flex-1 sm:flex-none px-3 sm:px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-semibold shadow-md hover:shadow-lg text-sm sm:text-base"
+                      >
+                        📋 Copy
+                      </button>
+                      
+                      <button
+                        onClick={() => shareToFacebook(post.content)}
+                        disabled={loading}
+                        className="flex-1 sm:flex-none px-3 sm:px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:shadow-lg transition-all font-semibold shadow-md text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {loading ? '⏳' : '📤 Share'}
+                      </button>
+                    </div>
                   </div>
+                  
                   <div className="p-3 sm:p-4 bg-gray-50 rounded-xl mb-4 overflow-x-auto">
                     <pre className="whitespace-pre-wrap font-sans text-xs sm:text-sm text-gray-800">{post.content}</pre>
                   </div>
+                  
                   <div className="flex flex-col sm:flex-row gap-3 sm:gap-6 text-xs sm:text-sm text-gray-600">
                     <span>📝 {post.word_count} words</span>
                     <span>🔤 {post.character_count} characters</span>
@@ -756,6 +770,7 @@ const [generatedPosts, setGeneratedPosts] = useState<string[]>([])
               ))}
             </div>
           )}
+
 		  
         {/* Custom Post Section - ADD THIS HERE! */}
           <div className="bg-white rounded-xl shadow-lg p-6 mt-8">
