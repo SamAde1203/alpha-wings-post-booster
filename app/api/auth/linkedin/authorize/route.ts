@@ -1,8 +1,10 @@
+import { NextRequest, NextResponse } from 'next/server'  // ✅ ADD THIS
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const state = searchParams.get('state')
   
-  // ✅ OFFICIAL SCOPES for Share on LinkedIn + Sign In
+  // ✅ OFFICIAL SCOPES: Share on LinkedIn product
   const scope = encodeURIComponent('openid profile email r_liteprofile r_ugc_posts')
   
   const authUrl = `https://www.linkedin.com/oauth/v2/authorization?` +
