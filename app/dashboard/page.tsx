@@ -34,9 +34,8 @@ function DashboardContent() {
   const [showConnectionSuccess, setShowConnectionSuccess] = useState(false)
   const [showConnectionError, setShowConnectionError] = useState(false)
   const [connectionMessage, setConnectionMessage] = useState('')
-  # Add the missing state variables at the top of dashboard
-const [customPost, setCustomPost] = useState('')
-const [generatedPosts, setGeneratedPosts] = useState<string[]>([])
+  const [customPost, setCustomPost] = useState('')
+  const [generatedPosts, setGeneratedPosts] = useState<string[]>([])
 
 
   useEffect(() => {
