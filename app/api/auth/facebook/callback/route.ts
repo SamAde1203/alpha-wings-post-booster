@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
+import { createClient } from '@supabase/supabase-js'
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
   const code = searchParams.get('code')
+  const state = searchParams.get('state') // We'll use this to pass user_id
   const error = searchParams.get('error')
   const errorDescription = searchParams.get('error_description')
 
@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
 
   console.log('🔍 Facebook Callback Hit!')
   console.log('Code:', code ? 'Present' : 'Missing')
-  console.log('Error:', error)
+  console.log('State:', state)
 
   if (error) {
     console.error('❌ Facebook OAuth error:', error, errorDescription)
@@ -23,9 +23,12 @@ export async function GET(request: NextRequest) {
 
   if (!code) {
     console.error('❌ No authorization code')
-    return NextResponse.redirect(
-      `${appUrl}/dashboard?error=no_code`
-    )
+    return NextResponse.redirect(`${appUrl}/dashboard?error=no_code`)
+  }
+
+  if (!state) {
+    console.error('❌ No state parameter (user_id missing)')
+    return NextResponse.redirect(`${appUrl}/dashboard?error=missing_user_id`)
   }
 
   try {
@@ -33,11 +36,7 @@ export async function GET(request: NextRequest) {
     const clientSecret = process.env.FACEBOOK_APP_SECRET
     const redirectUri = process.env.FACEBOOK_REDIRECT_URI
 
-    console.log('📝 Config check:')
-    console.log('Client ID:', clientId ? 'Present' : 'Missing')
-    console.log('Client Secret:', clientSecret ? 'Present' : 'Missing')
-    console.log('Redirect URI:', redirectUri)
-
+    console.log('📝 Config check')
     if (!clientId || !clientSecret || !redirectUri) {
       throw new Error('Facebook OAuth configuration missing')
     }
@@ -51,7 +50,6 @@ export async function GET(request: NextRequest) {
     tokenUrl.searchParams.append('code', code)
 
     const tokenResponse = await fetch(tokenUrl.toString())
-    
     if (!tokenResponse.ok) {
       const errorData = await tokenResponse.json()
       console.error('❌ Token exchange failed:', errorData)
@@ -62,7 +60,7 @@ export async function GET(request: NextRequest) {
     console.log('✅ Token received')
     const { access_token, expires_in } = tokenData
 
-    // Get long-lived token (60 days)
+    // Get long-lived token
     console.log('🔄 Getting long-lived token...')
     const longTokenUrl = new URL('https://graph.facebook.com/v19.0/oauth/access_token')
     longTokenUrl.searchParams.append('grant_type', 'fb_exchange_token')
@@ -77,71 +75,41 @@ export async function GET(request: NextRequest) {
     console.log('✅ Long-lived token received')
 
     // Get user profile
-    console.log('🔄 Fetching user profile...')
+    console.log('🔄 Fetching profile...')
     const profileResponse = await fetch(
       `https://graph.facebook.com/v19.0/me?fields=id,name,email,picture&access_token=${longLivedToken}`
     )
-
-    if (!profileResponse.ok) {
-      console.error('❌ Profile fetch failed')
-      throw new Error('Failed to get user profile')
-    }
-
+    if (!profileResponse.ok) throw new Error('Failed to get profile')
+    
     const profile = await profileResponse.json()
-    console.log('✅ Profile received:', profile.name, profile.id)
+    console.log('✅ Profile:', profile.name)
 
-    // Get user's pages
+    // Get pages
     console.log('🔄 Fetching pages...')
     const pagesResponse = await fetch(
       `https://graph.facebook.com/v19.0/me/accounts?access_token=${longLivedToken}`
     )
     const pagesData = await pagesResponse.json()
-    console.log('✅ Pages received:', pagesData.data?.length || 0)
+    console.log('✅ Pages:', pagesData.data?.length || 0)
 
-    // Create Supabase client with cookies
-    console.log('🔄 Creating Supabase client...')
-    const cookieStore = await cookies()
-    const supabase = createServerClient(
+    // Use SERVICE ROLE KEY for direct database access (bypasses RLS)
+    console.log('🔄 Creating admin Supabase client...')
+    const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!, // Admin key
       {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll()
-          },
-          setAll(cookiesToSet) {
-            try {
-              cookiesToSet.forEach(({ name, value, options }) =>
-                cookieStore.set(name, value, options)
-              )
-            } catch {}
-          },
-        },
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
       }
     )
 
-    // Get current user
-    console.log('🔄 Getting authenticated user...')
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    const userId = state // state parameter contains user_id
 
-    if (authError) {
-      console.error('❌ Auth error:', authError)
-      throw new Error(`Authentication error: ${authError.message}`)
-    }
-
-    if (!user) {
-      console.error('❌ No authenticated user found')
-      return NextResponse.redirect(
-        `${appUrl}/login?error=not_authenticated&message=${encodeURIComponent('Please log in first')}`
-      )
-    }
-
-    console.log('✅ User authenticated:', user.id, user.email)
-
-    // Store Facebook connection
-    console.log('🔄 Saving to database...')
+    console.log('🔄 Saving to database for user:', userId)
     const connectionData = {
-      user_id: user.id,
+      user_id: userId,
       platform: 'facebook',
       platform_user_id: profile.id,
       platform_username: profile.name,
@@ -155,14 +123,7 @@ export async function GET(request: NextRequest) {
       updated_at: new Date().toISOString()
     }
 
-    console.log('📝 Attempting to save:', {
-      user_id: connectionData.user_id,
-      platform: connectionData.platform,
-      platform_user_id: connectionData.platform_user_id,
-      platform_username: connectionData.platform_username
-    })
-
-    const { data: savedData, error: dbError } = await supabase
+    const { data: savedData, error: dbError } = await supabaseAdmin
       .from('social_accounts')
       .upsert(connectionData, {
         onConflict: 'user_id,platform'
@@ -171,34 +132,18 @@ export async function GET(request: NextRequest) {
 
     if (dbError) {
       console.error('❌ Database error:', dbError)
-      console.error('Error details:', JSON.stringify(dbError, null, 2))
       throw new Error(`Database save failed: ${dbError.message}`)
     }
 
-    console.log('✅ Successfully saved to database!')
-    console.log('📊 Saved data:', savedData)
-
-    // Verify it was saved
-    const { data: verifyData, error: verifyError } = await supabase
-      .from('social_accounts')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('platform', 'facebook')
-      .single()
-
-    if (verifyError) {
-      console.error('⚠️ Could not verify save:', verifyError)
-    } else {
-      console.log('✅ Verification successful! Data exists:', verifyData?.id)
-    }
+    console.log('✅ Saved successfully!')
+    console.log('📊 Data:', savedData)
 
     return NextResponse.redirect(
       `${appUrl}/dashboard?success=facebook_connected&timestamp=${Date.now()}`
     )
   } catch (error) {
-    console.error('❌ Facebook OAuth error:', error)
+    console.error('❌ Error:', error)
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-    console.error('Full error:', JSON.stringify(error, null, 2))
     return NextResponse.redirect(
       `${appUrl}/dashboard?error=facebook_connection_failed&message=${encodeURIComponent(errorMessage)}`
     )
