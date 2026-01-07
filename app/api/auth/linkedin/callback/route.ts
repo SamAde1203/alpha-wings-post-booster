@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
 
     console.log('✅ LinkedIn access token received')
 
-    // Save to database with minimal info
+ // Save to database with minimal info
 const { error: dbError } = await supabase
   .from('social_accounts')
   .upsert(
@@ -82,8 +82,14 @@ const { error: dbError } = await supabase
 
 if (dbError) {
   console.error('❌ Database error (LinkedIn):', dbError)
- 
- return NextResponse.redirect(
+  return NextResponse.redirect(
+    `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?error=database_error&message=${encodeURIComponent(dbError.message)}`
+  )
+}
+
+    console.log('✅ LinkedIn account saved to database')
+
+    return NextResponse.redirect(
       `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?success=linkedin_connected`
     )
   } catch (err) {
@@ -91,5 +97,5 @@ if (dbError) {
     return NextResponse.redirect(
       `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?error=unexpected_error`
     )
-  
+  }
 }
