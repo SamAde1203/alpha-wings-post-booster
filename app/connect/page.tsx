@@ -72,9 +72,10 @@ export default function ConnectPage() {
 
     setLoading(true)
     const { data, error } = await supabase
-      .from('social_connections')
+      .from('social_accounts')  // ✅ FIXED: Changed from 'social_connections'
       .select('*')
       .eq('user_id', userId)
+      .eq('is_active', true)  // ✅ ADDED: Only get active connections
 
     if (error) {
       console.error('Error loading connections:', error)
@@ -97,8 +98,19 @@ export default function ConnectPage() {
       plan: user?.subscription_tier || 'free'
     })
 
-    // Placeholder for OAuth flow
-    alert(`🚀 ${platform.toUpperCase()} OAuth integration coming soon!\n\nFor now, you can:\n1. Generate posts in the Dashboard\n2. Copy them to clipboard\n3. Post manually to ${platform}\n\nFull auto-posting launches this week!`)
+    // ✅ FIXED: Handle Facebook OAuth (working!)
+    if (platform === 'facebook') {
+      if (!userId) {
+        alert('❌ Please log in first')
+        return
+      }
+      console.log('🔗 Redirecting to Facebook OAuth...')
+      window.location.href = `/api/auth/facebook?user_id=${userId}`
+      return
+    }
+
+    // Other platforms - coming soon
+    alert(`🚀 ${platform.toUpperCase()} OAuth integration coming soon!\n\n✅ Facebook is LIVE and working!\n⏳ ${platform} launching soon!\n\nConnect Facebook to start auto-posting today!`)
   }
 
   async function handleDisconnect(platform: string) {
@@ -110,7 +122,7 @@ export default function ConnectPage() {
     })
 
     const { error } = await supabase
-      .from('social_connections')
+      .from('social_accounts')  // ✅ FIXED: Changed from 'social_connections'
       .delete()
       .eq('user_id', userId)
       .eq('platform', platform)
@@ -129,12 +141,22 @@ export default function ConnectPage() {
 
   const platforms = [
     {
+      name: 'facebook',  // ✅ MOVED FACEBOOK TO TOP
+      displayName: 'Facebook',
+      icon: '👥',
+      color: 'from-blue-700 to-indigo-700',
+      description: 'Connect Facebook to reach your audience (LIVE NOW!)',
+      features: ['✅ Auto-post to pages', '✅ Schedule posts', '✅ Track engagement'],
+      status: 'live'  // ✅ ADDED STATUS
+    },
+    {
       name: 'linkedin',
       displayName: 'LinkedIn',
       icon: '💼',
       color: 'from-blue-600 to-blue-700',
       description: 'Connect your LinkedIn profile to auto-post professional content',
       features: ['Auto-post updates', 'Schedule posts', 'Track engagement'],
+      status: 'coming_soon'
     },
     {
       name: 'twitter',
@@ -143,14 +165,7 @@ export default function ConnectPage() {
       color: 'from-sky-500 to-blue-600',
       description: 'Connect Twitter to share your thoughts with the world',
       features: ['Auto-tweet', 'Thread posting', 'Schedule tweets'],
-    },
-    {
-      name: 'facebook',
-      displayName: 'Facebook',
-      icon: '👥',
-      color: 'from-blue-700 to-indigo-700',
-      description: 'Connect Facebook to reach your audience',
-      features: ['Auto-post to timeline', 'Post to pages', 'Schedule posts'],
+      status: 'coming_soon'
     },
     {
       name: 'instagram',
@@ -159,6 +174,7 @@ export default function ConnectPage() {
       color: 'from-pink-500 to-purple-600',
       description: 'Connect Instagram for visual content sharing',
       features: ['Auto-post images', 'Story scheduling', 'Caption generation'],
+      status: 'coming_soon'
     },
   ]
 
@@ -184,19 +200,19 @@ export default function ConnectPage() {
           </p>
         </div>
 
-        {/* Info Banner */}
+        {/* ✅ UPDATED Info Banner */}
         <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-4 sm:p-6 text-white mb-6 sm:mb-8">
           <div className="flex flex-col sm:flex-row items-start gap-4">
             <div className="text-3xl sm:text-4xl">🚀</div>
             <div className="flex-1">
-              <h3 className="text-lg sm:text-xl font-bold mb-2">Auto-Posting Made Easy</h3>
+              <h3 className="text-lg sm:text-xl font-bold mb-2">Facebook Auto-Posting is LIVE!</h3>
               <p className="text-sm sm:text-base text-blue-100 mb-3">
-                Connect your social media accounts once, then automatically publish your AI-generated posts across all platforms.
+                Connect your Facebook account now and start automating your content. LinkedIn, Twitter, and Instagram coming soon!
               </p>
               <div className="flex flex-wrap gap-2 text-xs sm:text-sm">
+                <span className="px-3 py-1 bg-white/20 rounded-full">✅ Facebook LIVE</span>
                 <span className="px-3 py-1 bg-white/20 rounded-full">✅ Secure OAuth</span>
                 <span className="px-3 py-1 bg-white/20 rounded-full">✅ One-Click Posting</span>
-                <span className="px-3 py-1 bg-white/20 rounded-full">✅ Schedule Anywhere</span>
               </div>
             </div>
           </div>
@@ -235,9 +251,17 @@ export default function ConnectPage() {
         <div className="grid md:grid-cols-2 gap-4 sm:gap-6">
           {platforms.map(platform => {
             const isConnected = connections[platform.name]
+            const isLive = platform.status === 'live'
 
             return (
-              <div key={platform.name} className="bg-white rounded-2xl shadow-xl p-6 sm:p-8">
+              <div key={platform.name} className="bg-white rounded-2xl shadow-xl p-6 sm:p-8 relative">
+                {/* ✅ ADDED: Live Badge */}
+                {isLive && (
+                  <div className="absolute top-4 right-4 px-3 py-1 bg-green-500 text-white text-xs font-bold rounded-full">
+                    LIVE
+                  </div>
+                )}
+                
                 <div className="flex items-start justify-between mb-4 sm:mb-6">
                   <div className="flex items-center gap-3 sm:gap-4">
                     <div className={`w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-r ${platform.color} flex items-center justify-center text-2xl sm:text-3xl shadow-lg flex-shrink-0`}>
@@ -250,10 +274,14 @@ export default function ConnectPage() {
                       {isConnected ? (
                         <div className="flex items-center gap-2 mt-1">
                           <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                          <span className="text-xs sm:text-sm text-green-600 font-medium">Connected</span>
+                          <span className="text-xs sm:text-sm text-green-600 font-medium">
+                            Connected as {isConnected.platform_username}
+                          </span>
                         </div>
                       ) : (
-                        <span className="text-xs sm:text-sm text-gray-500">Not connected</span>
+                        <span className="text-xs sm:text-sm text-gray-500">
+                          {isLive ? 'Ready to connect' : 'Coming soon'}
+                        </span>
                       )}
                     </div>
                   </div>
@@ -293,7 +321,7 @@ export default function ConnectPage() {
                     <button
                       onClick={() => {
                         analytics.trackEvent('configure_settings_clicked', { platform: platform.name })
-                        alert(`Configure ${platform.displayName} posting preferences`)
+                        alert(`⚙️ Configure ${platform.displayName} posting preferences\n\nComing soon:\n• Default posting times\n• Caption templates\n• Auto-hashtags`)
                       }}
                       className="w-full py-2 sm:py-3 bg-gray-100 text-gray-700 rounded-xl text-sm sm:text-base font-semibold hover:bg-gray-200 transition-colors"
                     >
@@ -303,9 +331,10 @@ export default function ConnectPage() {
                 ) : (
                   <button
                     onClick={() => handleConnect(platform.name)}
-                    className={`w-full py-2 sm:py-3 bg-gradient-to-r ${platform.color} text-white rounded-xl text-sm sm:text-base font-semibold shadow-lg hover:shadow-xl transition-all`}
+                    disabled={!isLive}
+                    className={`w-full py-2 sm:py-3 bg-gradient-to-r ${platform.color} text-white rounded-xl text-sm sm:text-base font-semibold shadow-lg hover:shadow-xl transition-all ${!isLive ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
-                    🔗 Connect {platform.displayName}
+                    {isLive ? `🔗 Connect ${platform.displayName}` : `⏳ ${platform.displayName} Coming Soon`}
                   </button>
                 )}
               </div>
