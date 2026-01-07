@@ -35,7 +35,7 @@ function DashboardContent() {
   const [showConnectionError, setShowConnectionError] = useState(false)
   const [connectionMessage, setConnectionMessage] = useState('')
   const [customPost, setCustomPost] = useState('')
-  const [generatedPosts, setGeneratedPosts] = useState<string[]>([])
+const [generatedPosts, setGeneratedPosts] = useState<string[]>([])
 
 
   useEffect(() => {
@@ -221,10 +221,76 @@ function DashboardContent() {
     }
   }
 
-  function copyPost(content: string) {
+    async function copyPost(content: string) {
     navigator.clipboard.writeText(content)
     analytics.copyPost(platform)
     alert('✅ Copied to clipboard!')
+  }
+
+  // 1️⃣ DEFINE shareToFacebook FIRST
+  async function shareToFacebook(postContent: string) {
+    if (!user?.id) {
+      alert('❌ Please log in first')
+      return
+    }
+
+    // Check if Facebook is connected
+    const fbConnection = connectedAccounts.find(acc => acc.platform === 'facebook')
+    if (!fbConnection) {
+      alert('❌ Please connect Facebook first!\n\nGo to Connect page to link your account.')
+      router.push('/connect')
+      return
+    }
+
+    const confirmed = confirm('📝 Post to Facebook?\n\nPreview:\n' + postContent.substring(0, 200) + '...\n\nClick OK to post now!')
+    
+    if (!confirmed) return
+
+    setLoading(true)
+
+    try {
+      const response = await fetch('/api/post-to-social', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: postContent,
+          userId: user.id,
+          platform: 'facebook'
+        })
+      })
+      
+      const data = await response.json()
+      
+      if (data.success) {
+        alert(`✅ Posted successfully to ${data.page || 'Facebook'}!\n\n📊 Post ID: ${data.postId}\n\n🎉 Check your Facebook page!`)
+        analytics.trackEvent('post_shared', { 
+          platform: 'facebook',
+          source: 'dashboard',
+          post_id: data.postId
+        })
+      } else {
+        alert(`❌ Error: ${data.error}\n\n${JSON.stringify(data.details || '', null, 2)}`)
+        analytics.error('post_share_failed', data.error, 'dashboard')
+      }
+    } catch (error) {
+      console.error('Post error:', error)
+      alert('❌ Failed to post. Please try again.')
+      analytics.error('post_share_exception', String(error), 'dashboard')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // 2️⃣ THEN DEFINE shareCustomPost (which uses shareToFacebook)
+  async function shareCustomPost() {
+    if (!customPost.trim()) {
+      alert('❌ Please write a post first!')
+      return
+    }
+
+    shareToFacebook(customPost)
   }
 
   function handlePlatformChange(newPlatform: string) {
@@ -243,15 +309,6 @@ function DashboardContent() {
       platform
     })
   }
-// Share custom post
-async function shareCustomPost() {
-  if (!customPost.trim()) {
-    alert('❌ Please write a post first!')
-    return
-  }
-
-  shareToFacebook(customPost)
-}
 
   if (isLoading) {
     return (
