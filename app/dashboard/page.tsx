@@ -7,6 +7,8 @@ import Image from 'next/image'
 import Navigation from '@/components/Navigation'
 import { analytics } from '@/lib/analytics'
 import ConnectFacebookButton from '@/components/ConnectFacebookButton'
+import ConnectLinkedInButton from '@/components/ConnectLinkedInButton'
+
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -402,25 +404,52 @@ const [generatedPosts, setGeneratedPosts] = useState<string[]>([])
                 )}
               </div>
 
-              {/* LinkedIn - Coming Soon */}
-              <div className="border-2 border-gray-200 rounded-xl p-4 opacity-60">
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-10 h-10 bg-[#0A66C2] rounded-full flex items-center justify-center">
-                      <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
-                      </svg>
+                            {/* LinkedIn Card - NOW ACTIVE! */}
+              <div className="border-2 border-gray-200 rounded-xl p-4">
+                {connectedAccounts.find(acc => acc.platform === 'linkedin') ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-10 h-10 bg-[#0A66C2] rounded-full flex items-center justify-center">
+                        <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+                        </svg>
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-bold text-sm">LinkedIn</div>
+                        <div className="text-xs text-green-600">✓ Connected</div>
+                      </div>
                     </div>
-                    <div className="flex-1">
-                      <div className="font-bold text-sm">LinkedIn</div>
-                      <div className="text-xs text-gray-500">Coming Soon</div>
+                    <div className="text-xs text-gray-600 mb-2">
+                      {connectedAccounts.find(acc => acc.platform === 'linkedin')?.platform_username}
                     </div>
+                    <button
+                      onClick={() => {
+                        const account = connectedAccounts.find(acc => acc.platform === 'linkedin')
+                        if (account) disconnectAccount(account.id, 'LinkedIn')
+                      }}
+                      className="w-full px-3 py-2 bg-red-100 text-red-700 rounded-lg text-xs font-semibold hover:bg-red-200 transition-colors"
+                    >
+                      Disconnect
+                    </button>
                   </div>
-                  <button disabled className="w-full px-3 py-2 bg-gray-200 text-gray-500 rounded-lg text-xs font-semibold cursor-not-allowed">
-                    Coming Soon
-                  </button>
-                </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
+                        <svg className="w-5 h-5 text-gray-500" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+                        </svg>
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-bold text-sm">LinkedIn</div>
+                        <div className="text-xs text-gray-500">Not connected</div>
+                      </div>
+                    </div>
+                    <ConnectLinkedInButton />
+                  </div>
+                )}
               </div>
+
 
               {/* Twitter - Coming Soon */}
               <div className="border-2 border-gray-200 rounded-xl p-4 opacity-60">
