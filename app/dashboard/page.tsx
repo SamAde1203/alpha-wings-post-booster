@@ -225,6 +225,48 @@ const [generatedPosts, setGeneratedPosts] = useState<string[]>([])
     }
   }
 
+async function shareToLinkedIn(postContent: string) {
+  if (!user?.id) {
+    alert('❌ Please log in first')
+    return
+  }
+
+  const linkedinConnection = connectedAccounts.find(acc => acc.platform === 'linkedin')
+  if (!linkedinConnection) {
+    alert('❌ Please connect LinkedIn first!\n\nGo to Connected Accounts section above.')
+    return
+  }
+
+  const confirmed = confirm('📝 Post to LinkedIn?\n\nPreview:\n' + postContent.substring(0, 200) + '...\n\nClick OK to post now!')
+  
+  if (!confirmed) return
+
+  setLoading(true)
+
+  try {
+    const result = await postToLinkedIn(
+      linkedinConnection.access_token!,
+      postContent
+    )
+    
+    if (result.success) {
+      alert(`✅ Posted successfully to LinkedIn!\n\n📊 Post URL: ${result.url}\n\n🎉 Check your LinkedIn profile!`)
+      analytics.trackEvent('post_shared', { 
+        platform: 'linkedin',
+        source: 'dashboard',
+        post_id: result.postId
+      })
+    }
+  } catch (error: any) {
+    console.error('LinkedIn post error:', error)
+    alert(`❌ Failed to post to LinkedIn:\n\n${error.message}`)
+    analytics.error('linkedin_post_failed', error.message, 'dashboard')
+  } finally {
+    setLoading(false)
+  }
+}
+
+
     async function copyPost(content: string) {
     navigator.clipboard.writeText(content)
     analytics.copyPost(platform)
@@ -296,26 +338,6 @@ const [generatedPosts, setGeneratedPosts] = useState<string[]>([])
 
     shareToFacebook(customPost)
   }
-
-// In your share function, after Facebook:
-if (selectedPlatforms.includes('linkedin')) {
-  const linkedinAccount = connectedAccounts.find(
-    acc => acc.platform === 'linkedin' && acc.is_active
-  )
-  
-  if (linkedinAccount?.access_token) {
-    const result = await postToLinkedIn(
-      linkedinAccount.access_token,
-      postContent,
-      postImageUrl
-    )
-    
-    if (result.success) {
-      console.log('✅ Posted to LinkedIn:', result.url)
-      // Update UI to show LinkedIn posted
-    }
-  }
-}
 
   function handlePlatformChange(newPlatform: string) {
     setPlatform(newPlatform)
@@ -797,13 +819,21 @@ if (selectedPlatforms.includes('linkedin')) {
                         📋 Copy
                       </button>
                       
-                      <button
-                        onClick={() => shareToFacebook(post.content)}
-                        disabled={loading}
-                        className="flex-1 sm:flex-none px-3 sm:px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:shadow-lg transition-all font-semibold shadow-md text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {loading ? '⏳' : '📤 Share'}
-                      </button>
+                      {/* Platform Selection Dropdown */}
+<select
+  onChange={(e) => {
+    if (e.target.value === 'facebook') shareToFacebook(post.content)
+    if (e.target.value === 'linkedin') shareToLinkedIn(post.content)
+    e.target.value = '' // reset
+  }}
+  disabled={loading}
+  className="flex-1 sm:flex-none px-3 sm:px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:shadow-lg transition-all font-semibold shadow-md text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+>
+  <option value="">📤 Share to...</option>
+  <option value="facebook">📘 Facebook</option>
+  <option value="linkedin">💼 LinkedIn</option>
+</select>
+
                     </div>
                   </div>
                   
