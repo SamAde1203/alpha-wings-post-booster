@@ -1,31 +1,55 @@
+import { createServerClient } from '@supabase/ssr'
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+import { headers } from 'next/headers'
 
 export async function POST(request: NextRequest) {
+  const requestHeaders = headers()
+  
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return requestHeaders.get(name)
+        }
+      }
+    }
+  )
+
   try {
     const { userId, content, platform = 'linkedin', scheduledAt } = await request.json()
     
-    const { error } = await supabase
-      .from('post_queue')
+    console.log('Queue post:', { userId, platform, scheduledAt: new Date(scheduledAt) })
+    
+    const { data, error } = await supabase
+      .from('posts')
       .insert({
         user_id: userId,
         content,
         platform,
+        status: 'scheduled',
         scheduled_at: scheduledAt
       })
+      .select()
+      .single()
 
-    if (error) throw error
+    if (error) {
+      console.error('DB Error:', error)
+      throw error
+    }
 
+    console.log('Saved post:', data.id)
     return NextResponse.json({ 
       success: true, 
-      message: `Post scheduled for ${new Date(scheduledAt).toLocaleString()}` 
+      postId: data.id,
+      message: `✅ Saved #${data.id.slice(-4)} for ${new Date(scheduledAt).toLocaleString()}` 
     })
-  } catch (error) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 })
+  } catch (error: any) {
+    console.error('Queue error:', error)
+    return NextResponse.json({ 
+      success: false, 
+      error: error.message 
+    }, { status: 500 })
   }
 }

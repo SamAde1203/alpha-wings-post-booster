@@ -50,6 +50,12 @@ const [scheduledPosts, setScheduledPosts] = useState<any[]>([])
     checkConnectionStatus()
   }, [])
 
+useEffect(() => {
+  if (user) {
+    loadScheduledPosts()
+  }
+}, [user])
+
   useEffect(() => {
     if (user) {
       analytics.viewDashboard()
@@ -136,6 +142,30 @@ const [scheduledPosts, setScheduledPosts] = useState<any[]>([])
       })
     }
   }
+//debug function  
+async function debugSchedule() {
+  const testData = {
+    userId: userId || 'debug',
+    content: 'TEST POST DEBUG',
+    platform: 'facebook',
+    scheduledAt: new Date(Date.now() + 60000).toISOString() // 1 min
+  }
+  
+  console.log('Sending:', testData)
+  
+  const res = await fetch('/api/queue-post', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(testData)
+  })
+  
+  const data = await res.json()
+  console.log('Response:', data)
+  alert(`Status: ${res.status}\nData: ${JSON.stringify(data)}`)
+}
+
+
+
 
   async function disconnectAccount(accountId: string, platform: string) {
     const confirmed = confirm(`Are you sure you want to disconnect your ${platform} account?`)
@@ -862,6 +892,17 @@ async function handleDeleteScheduled(postId: string) {
               </button>
             </div>
           </div>
+
+
+//debug button
+<button
+  onClick={debugSchedule}
+  className="px-4 py-2 bg-orange-500 text-white rounded mt-4"
+>
+  🐛 Debug Save
+</button>
+
+
 
                     {/* Generated Posts */}
           {posts.length > 0 && (
