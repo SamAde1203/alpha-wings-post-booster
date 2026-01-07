@@ -58,43 +58,22 @@ export async function GET(request: NextRequest) {
 
     console.log('✅ LinkedIn access token received')
 
-    // 2) Get profile via OpenID userinfo endpoint (works with openid+profile scopes) [web:736][web:743]
-    const profileResponse = await fetch('https://api.linkedin.com/v2/userinfo', {
-      headers: {
-        Authorization: `Bearer ${tokenData.access_token}`,
-      },
-    })
-
-    const profileData = await profileResponse.json()
-    console.log('🔎 LinkedIn userinfo status:', profileResponse.status, profileData)
-
-    if (!profileResponse.ok) {
-      console.error('❌ LinkedIn profile error:', profileData)
-      return NextResponse.redirect(
-        `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?error=profile_fetch_failed`
-      )
-    }
-
-    const fullName = profileData.name || 'LinkedIn User'
-    const memberId = profileData.sub  // stable member ID from OpenID userinfo [web:736]
-
-    console.log('✅ LinkedIn profile received:', fullName, memberId)
-
-    // 3) Save to database
+    // 2) Save to database with minimal info
     const { error: dbError } = await supabase
       .from('social_accounts')
       .upsert(
         {
           user_id: state,
           platform: 'linkedin',
-          platform_user_id: memberId,
-          platform_username: fullName,
+          // No profile id available without profile scopes; store a placeholder
+          platform_user_id: null,
+          platform_username: 'LinkedIn Account',
           access_token: tokenData.access_token,
           refresh_token: tokenData.refresh_token,
           token_expires_at: new Date(
             Date.now() + (tokenData.expires_in ?? 0) * 1000
           ).toISOString(),
-          profile_data: profileData,
+          profile_data: null,
           is_active: true,
         },
         {
