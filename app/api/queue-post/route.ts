@@ -18,18 +18,21 @@ export async function POST(request: NextRequest) {
   )
 
   try {
-    const { userId, content, platform = 'linkedin', scheduledAt } = await request.json()
+    const { userId, postId, platform = 'linkedin', scheduledAt } = await request.json()
     
-    console.log('Queue post:', { userId, platform, scheduledAt: new Date(scheduledAt) })
+    console.log('Queue post:', { userId, postId, platform, scheduledAt: new Date(scheduledAt) })
     
     const { data, error } = await supabase
-      .from('posts')
+      .from('scheduled_posts')
       .insert({
         user_id: userId,
-        content,
+        post_id: postId,
         platform,
-        status: 'scheduled',
-        scheduled_at: scheduledAt
+        scheduled_time: scheduledAt,
+        status: 'pending',
+        auto_publish: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       })
       .select()
       .single()
@@ -39,17 +42,17 @@ export async function POST(request: NextRequest) {
       throw error
     }
 
-    console.log('Saved post:', data.id)
+    console.log('Scheduled post saved:', data.id)
     return NextResponse.json({ 
       success: true, 
-      postId: data.id,
-      message: `✅ Saved #${data.id.slice(-4)} for ${new Date(scheduledAt).toLocaleString()}` 
+      scheduledPostId: data.id,
+      message: `✅ Post scheduled for ${new Date(scheduledAt).toLocaleString()}` 
     })
   } catch (error: any) {
     console.error('Queue error:', error)
     return NextResponse.json({ 
       success: false, 
-      error: error.message 
+      error: error.message || 'Failed to schedule post' 
     }, { status: 500 })
   }
 }

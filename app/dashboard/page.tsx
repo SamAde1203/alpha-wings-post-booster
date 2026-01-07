@@ -367,50 +367,82 @@ async function loadScheduledPosts() {
   if (!userId) return
   
   const { data } = await supabase
-    .from('posts')
-    .select('*')
+    .from('scheduled_posts')  // Corrected: was 'posts'
+    .select(`
+      *,
+      generated_posts:post_id (content, platform, tone)
+    `)
     .eq('user_id', userId)
-    .in('status', ['scheduled', 'published'])
-    .order('scheduled_at', { ascending: false })
+    .order('scheduled_time', { ascending: false })  // Corrected: was 'scheduled_at'
     .limit(20)
   
-  if (data) setScheduledPosts(data)
+  if (data) {
+    // Format data to include content
+    const formattedData = data.map(post => ({
+      ...post,
+      content: post.generated_posts?.content || '',
+      platform: post.platform,
+      scheduled_at: post.scheduled_time  // Alias for display
+    }))
+    setScheduledPosts(formattedData)
+  }
 }
 
 // Schedule post
 async function handleSchedulePost() {
-  if (!customPost.trim() || !scheduleDate || !scheduleTime) {
+  if (!customPost.trim() || !scheduleDate || !scheduleTime || !userId) {
     alert('Please write a post and select date/time')
     return
   }
   
   setLoading(true)
   try {
-    const scheduledAt = new Date(`${scheduleDate}T${scheduleTime}:00Z`).toISOString()
+    const scheduledAt = new Date(`${scheduleDate}T${scheduleTime}:00Z`)
     
+    // 1. First save the post content to generated_posts
+    const { data: postData, error: postError } = await supabase
+      .from('generated_posts')
+      .insert({
+        user_id: userId,
+        content: customPost,
+        platform: platform,  // Use selected platform, not hardcoded
+        tone: 'custom',
+        created_at: new Date().toISOString()
+      })
+      .select('id')
+      .single()
+    
+    if (postError) {
+      console.error('Failed to save post:', postError)
+      throw new Error(`Failed to save post: ${postError.message}`)
+    }
+    
+    // 2. Then schedule it with the API
     const response = await fetch('/api/queue-post', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         userId,
-        content: customPost,
-        platform: 'linkedin',
-        scheduledAt
+        postId: postData.id,  // Pass post ID, not content
+        platform: platform,    // Use selected platform
+        scheduledAt: scheduledAt.toISOString()
       })
     })
     
     const data = await response.json()
     
-    if (data.success) {
-      alert(`✅ ${data.message}`)
-      setCustomPost('')
-      setScheduleDate('')
-      await loadScheduledPosts()
-    } else {
-      alert(`Error: ${data.error}`)
+    if (!data.success) {
+      throw new Error(data.error || 'Failed to schedule')
     }
-  } catch (error) {
-    alert('Failed to schedule. Try again.')
+    
+    alert(`✅ ${data.message}`)
+    setCustomPost('')
+    setScheduleDate('')
+    await loadScheduledPosts()
+    
+  } catch (error: any) {
+    console.error('Schedule error:', error)
+    alert(`Failed to schedule: ${error.message}`)
   } finally {
     setLoading(false)
   }
@@ -421,16 +453,18 @@ async function handleDeleteScheduled(postId: string) {
   if (!confirm('Cancel this scheduled post?')) return
   
   const { error } = await supabase
-    .from('posts')
+    .from('scheduled_posts')  // Corrected: was 'posts'
     .delete()
     .eq('id', postId)
   
   if (!error) {
     alert('✅ Scheduled post cancelled')
     await loadScheduledPosts()
+  } else {
+    console.error('Delete error:', error)
+    alert('Failed to cancel scheduled post')
   }
 }
-
   function handlePlatformChange(newPlatform: string) {
     setPlatform(newPlatform)
     analytics.trackEvent('platform_selected', {
