@@ -20,16 +20,22 @@ export default function ConnectLinkedInButton() {
 
       const userId = session.user.id
 
-      // LinkedIn OAuth URL
-      const linkedInAuthUrl = new URL('https://www.linkedin.com/oauth/v2/authorization')
-      linkedInAuthUrl.searchParams.append('response_type', 'code')
-      linkedInAuthUrl.searchParams.append('client_id', process.env.NEXT_PUBLIC_LINKEDIN_CLIENT_ID!)
-      linkedInAuthUrl.searchParams.append('redirect_uri', process.env.NEXT_PUBLIC_LINKEDIN_REDIRECT_URI!)
-      linkedInAuthUrl.searchParams.append('state', userId)
-      linkedInAuthUrl.searchParams.append('scope', 'openid profile email w_member_social')
+      // Call our API to get the LinkedIn auth URL
+      const response = await fetch('/api/auth/linkedin/authorize', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId }),
+      })
 
-      // Redirect to LinkedIn
-      window.location.href = linkedInAuthUrl.toString()
+      const data = await response.json()
+
+      if (data.authUrl) {
+        window.location.href = data.authUrl
+      } else {
+        alert('Failed to connect LinkedIn. Please try again.')
+      }
     } catch (error) {
       console.error('Error connecting LinkedIn:', error)
       alert('Failed to connect LinkedIn. Please try again.')
