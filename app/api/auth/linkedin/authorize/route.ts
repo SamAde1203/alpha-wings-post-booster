@@ -1,11 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server'  // ✅ ADD THIS
+import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
-  const state = searchParams.get('state')
+  const state = searchParams.get('state') || 'default'
   
-  // ✅ OFFICIAL SCOPES: Share on LinkedIn product
-  const scope = encodeURIComponent('openid profile email r_liteprofile r_ugc_posts')
+  const scope = encodeURIComponent('r_liteprofile r_emailaddress w_member_social')  // YOUR WORKING SCOPES
   
   const authUrl = `https://www.linkedin.com/oauth/v2/authorization?` +
     `response_type=code&` +
@@ -14,5 +13,6 @@ export async function GET(request: NextRequest) {
     `state=${state}&` +
     `scope=${scope}`
 
+  console.log('🔵 Redirecting to LinkedIn auth:', authUrl)
   return NextResponse.redirect(authUrl)
 }
