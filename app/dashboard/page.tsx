@@ -113,15 +113,7 @@ function DashboardContent() {
       setPostsRemaining(data.posts_limit - data.posts_this_month)
     }
   }
-// Share custom post
-async function shareCustomPost() {
-  if (!customPost.trim()) {
-    alert('❌ Please write a post first!')
-    return
-  }
 
-  shareToFacebook(customPost)
-}
   async function loadConnectedAccounts(userId: string) {
     const { data } = await supabase
       .from('social_accounts')
@@ -251,6 +243,15 @@ async function shareCustomPost() {
       platform
     })
   }
+// Share custom post
+async function shareCustomPost() {
+  if (!customPost.trim()) {
+    alert('❌ Please write a post first!')
+    return
+  }
+
+  shareToFacebook(customPost)
+}
 
   if (isLoading) {
     return (
