@@ -35,6 +35,8 @@ function DashboardContent() {
   const [showConnectionError, setShowConnectionError] = useState(false)
   const [connectionMessage, setConnectionMessage] = useState('')
   const [customPost, setCustomPost] = useState('')
+  const [generatedPosts, setGeneratedPosts] = useState<string[]>([])
+
 
 
   useEffect(() => {
