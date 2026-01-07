@@ -35,7 +35,7 @@ function DashboardContent() {
   const [showConnectionError, setShowConnectionError] = useState(false)
   const [connectionMessage, setConnectionMessage] = useState('')
   const [customPost, setCustomPost] = useState('')
-  const [generatedPosts, setGeneratedPosts] = useState<string[]>([])
+  //const [generatedPosts, setGeneratedPosts] = useState<string[]>([])
 
 
 
@@ -761,36 +761,7 @@ async function shareCustomPost() {
     </div>
   )
 }
-{generatedPosts.map((post, index) => (
-  <div key={index} className="bg-white rounded-xl shadow-lg p-6 mb-4">
-    <div className="flex items-center justify-between mb-4">
-      <h4 className="text-lg font-bold">Generated Post {index + 1}</h4>
-      <div className="flex gap-2">
-        <button
-          onClick={() => {
-            navigator.clipboard.writeText(post)
-            alert('✅ Copied to clipboard!')
-          }}
-          className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm font-semibold"
-        >
-          📋 Copy
-        </button>
-        
-        <button
-          onClick={() => shareToFacebook(post)}
-          disabled={loading}
-          className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:shadow-lg transition-all text-sm font-semibold disabled:opacity-50"
-        >
-          {loading ? '⏳ Posting...' : '📤 Share'}
-        </button>
-      </div>
-    </div>
-    
-    <div className="p-4 bg-gray-50 rounded-lg whitespace-pre-wrap">
-      {post}
-    </div>
-  </div>
-))}
+
 
 {/* Custom Post Section */}
 <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
