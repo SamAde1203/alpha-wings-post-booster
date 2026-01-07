@@ -1,3 +1,11 @@
+import { NextRequest, NextResponse } from 'next/server'  // ✅ ADD THIS
+import { createClient } from '@supabase/supabase-js'
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
+
 export async function POST(request: NextRequest) {
   try {
     const { userId, postContent } = await request.json()
@@ -14,8 +22,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'No LinkedIn account' })
     }
 
-    // 1️⃣ GET PERSON URN (REQUIRED)
-    const meResponse = await fetch('https://api.linkedin.com/v2/me?projection=(id,firstName,lastName,profilePicture(displayImage~:playableStreams))', {
+    // 1️⃣ GET PERSON URN
+    const meResponse = await fetch('https://api.linkedin.com/v2/me?projection=(id)', {
       headers: {
         'Authorization': `Bearer ${account.access_token}`,
         'X-Restli-Protocol-Version': '2.0.0'
@@ -27,7 +35,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Invalid token', details: meData })
     }
 
-    const personUrn = `urn:li:person:${meData.id}`  // e.g. urn:li:person:ABC123
+    const personUrn = `urn:li:person:${meData.id}`
 
     // 2️⃣ CREATE POST
     const postData = {
@@ -44,7 +52,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const response = await fetch('https://api.linkedin.com/v2/ugcPosts', {  // ✅ FIXED ENDPOINT
+    const response = await fetch('https://api.linkedin.com/v2/ugcPosts', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${account.access_token}`,
@@ -59,7 +67,7 @@ export async function POST(request: NextRequest) {
     console.log('✅ Post result:', result)
 
     if (!response.ok) {
-      return NextResponse.json({ success: false, error: result.message || 'Post failed', details: result })
+      return NextResponse.json({ success: false, error: result.message || 'Post failed' })
     }
 
     const postUrn = response.headers.get('X-RestLi-Id')
