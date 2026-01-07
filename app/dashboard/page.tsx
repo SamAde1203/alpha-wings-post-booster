@@ -8,6 +8,8 @@ import Navigation from '@/components/Navigation'
 import { analytics } from '@/lib/analytics'
 import ConnectFacebookButton from '@/components/ConnectFacebookButton'
 import ConnectLinkedInButton from '@/components/ConnectLinkedInButton'
+import { postToLinkedIn } from '@/lib/linkedin'
+
 
 
 const supabase = createClient(
@@ -295,6 +297,26 @@ const [generatedPosts, setGeneratedPosts] = useState<string[]>([])
     shareToFacebook(customPost)
   }
 
+// In your share function, after Facebook:
+if (selectedPlatforms.includes('linkedin')) {
+  const linkedinAccount = connectedAccounts.find(
+    acc => acc.platform === 'linkedin' && acc.is_active
+  )
+  
+  if (linkedinAccount?.access_token) {
+    const result = await postToLinkedIn(
+      linkedinAccount.access_token,
+      postContent,
+      postImageUrl
+    )
+    
+    if (result.success) {
+      console.log('✅ Posted to LinkedIn:', result.url)
+      // Update UI to show LinkedIn posted
+    }
+  }
+}
+
   function handlePlatformChange(newPlatform: string) {
     setPlatform(newPlatform)
     analytics.trackEvent('platform_selected', {
@@ -404,7 +426,7 @@ const [generatedPosts, setGeneratedPosts] = useState<string[]>([])
                 )}
               </div>
 
-                            {/* LinkedIn Card - NOW ACTIVE! */}
+               {/* LinkedIn Card - NOW ACTIVE! */}
               <div className="border-2 border-gray-200 rounded-xl p-4">
                 {connectedAccounts.find(acc => acc.platform === 'linkedin') ? (
                   <div className="space-y-3">
