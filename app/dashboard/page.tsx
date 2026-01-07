@@ -40,6 +40,9 @@ function DashboardContent() {
   const [connectionMessage, setConnectionMessage] = useState('')
   const [customPost, setCustomPost] = useState('')
 const [generatedPosts, setGeneratedPosts] = useState<string[]>([])
+const [scheduleDate, setScheduleDate] = useState('')
+const [scheduleTime, setScheduleTime] = useState('09:00')
+const [scheduledPosts, setScheduledPosts] = useState<any[]>([])
 
 
   useEffect(() => {
@@ -328,6 +331,75 @@ async function shareToLinkedIn(postContent: string) {
 
     shareToFacebook(customPost)
   }
+
+// Load scheduled posts
+async function loadScheduledPosts() {
+  if (!userId) return
+  
+  const { data } = await supabase
+    .from('posts')
+    .select('*')
+    .eq('user_id', userId)
+    .in('status', ['scheduled', 'published'])
+    .order('scheduled_at', { ascending: false })
+    .limit(20)
+  
+  if (data) setScheduledPosts(data)
+}
+
+// Schedule post
+async function handleSchedulePost() {
+  if (!customPost.trim() || !scheduleDate || !scheduleTime) {
+    alert('Please write a post and select date/time')
+    return
+  }
+  
+  setLoading(true)
+  try {
+    const scheduledAt = new Date(`${scheduleDate}T${scheduleTime}:00Z`).toISOString()
+    
+    const response = await fetch('/api/queue-post', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId,
+        content: customPost,
+        platform: 'linkedin',
+        scheduledAt
+      })
+    })
+    
+    const data = await response.json()
+    
+    if (data.success) {
+      alert(`✅ ${data.message}`)
+      setCustomPost('')
+      setScheduleDate('')
+      await loadScheduledPosts()
+    } else {
+      alert(`Error: ${data.error}`)
+    }
+  } catch (error) {
+    alert('Failed to schedule. Try again.')
+  } finally {
+    setLoading(false)
+  }
+}
+
+// Delete scheduled post
+async function handleDeleteScheduled(postId: string) {
+  if (!confirm('Cancel this scheduled post?')) return
+  
+  const { error } = await supabase
+    .from('posts')
+    .delete()
+    .eq('id', postId)
+  
+  if (!error) {
+    alert('✅ Scheduled post cancelled')
+    await loadScheduledPosts()
+  }
+}
 
   function handlePlatformChange(newPlatform: string) {
     setPlatform(newPlatform)
@@ -889,6 +961,108 @@ async function shareToLinkedIn(postContent: string) {
     </div>
   )
 }
+
+{/* POST SCHEDULER - NEW SECTION */}
+<div className="bg-white rounded-xl shadow-lg p-6 mt-8">
+  <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+    <span>📅</span>
+    <span>Schedule Posts</span>
+  </h3>
+  
+  <div className="space-y-4">
+    {/* Date/Time Picker */}
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <label className="block text-sm font-medium mb-2">Date</label>
+        <input
+          type="date"
+          value={scheduleDate}
+          onChange={(e) => setScheduleDate(e.target.value)}
+          min={new Date().toISOString().split('T')[0]}
+          className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+        />
+      </div>
+      
+      <div>
+        <label className="block text-sm font-medium mb-2">Time (GMT)</label>
+        <input
+          type="time"
+          value={scheduleTime}
+          onChange={(e) => setScheduleTime(e.target.value)}
+          className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+        />
+      </div>
+    </div>
+
+    {/* Schedule Preview */}
+    {scheduleDate && scheduleTime && (
+      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+        <p className="text-sm text-gray-700">
+          📌 Will post on: <strong>{new Date(`${scheduleDate}T${scheduleTime}`).toLocaleString()}</strong>
+        </p>
+      </div>
+    )}
+
+    {/* Action Buttons */}
+    <div className="flex gap-3">
+      <button
+        onClick={handleSchedulePost}
+        disabled={!customPost.trim() || !scheduleDate || !scheduleTime || loading}
+        className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:shadow-lg transition-all text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {loading ? '⏳ Scheduling...' : '📅 Schedule Post'}
+      </button>
+      
+      <button
+        onClick={shareCustomPost}
+        disabled={!customPost.trim() || loading}
+        className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-lg hover:shadow-lg transition-all text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {loading ? '⏳ Posting...' : '🚀 Post Now'}
+      </button>
+    </div>
+  </div>
+</div>
+
+{/* SCHEDULED POSTS LIST */}
+<div className="bg-white rounded-xl shadow-lg p-6 mt-8">
+  <h3 className="text-xl font-bold mb-4">📋 Scheduled Posts ({scheduledPosts.length})</h3>
+  
+  {scheduledPosts.length === 0 ? (
+    <p className="text-gray-500 text-center py-8">No scheduled posts yet</p>
+  ) : (
+    <div className="space-y-3">
+      {scheduledPosts.map((post) => (
+        <div key={post.id} className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors">
+          <div className="flex justify-between items-start gap-4">
+            <div className="flex-1">
+              <p className="text-sm text-gray-700 line-clamp-2 mb-2">{post.content}</p>
+              <div className="flex items-center gap-4 text-xs text-gray-500">
+                <span>📅 {new Date(post.scheduled_at).toLocaleString()}</span>
+                <span className={`px-2 py-1 rounded ${
+                  post.status === 'scheduled' ? 'bg-blue-100 text-blue-700' :
+                  post.status === 'published' ? 'bg-green-100 text-green-700' :
+                  'bg-red-100 text-red-700'
+                }`}>
+                  {post.status}
+                </span>
+              </div>
+            </div>
+            
+            {post.status === 'scheduled' && (
+              <button
+                onClick={() => handleDeleteScheduled(post.id)}
+                className="px-3 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 text-xs font-semibold"
+              >
+                Cancel
+              </button>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  )}
+</div>
 
 
 // Main component with Suspense wrapper
