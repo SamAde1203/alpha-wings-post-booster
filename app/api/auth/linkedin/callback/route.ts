@@ -60,23 +60,45 @@ export async function GET(request: NextRequest) {
 
     console.log('✅ LinkedIn access token received')
 
-    // Get user profile info
-    const profileResponse = await fetch('https://api.linkedin.com/v2/userinfo', {
-      headers: {
-        'Authorization': `Bearer ${tokenData.access_token}`,
-      },
-    })
+   // Get user profile info using LinkedIn v2 API
+const profileResponse = await fetch('https://api.linkedin.com/v2/me', {
+  headers: {
+    'Authorization': `Bearer ${tokenData.access_token}`,
+  },
+})
 
-    const profileData = await profileResponse.json()
+const profileData = await profileResponse.json()
 
-    if (!profileResponse.ok) {
-      console.error('❌ LinkedIn profile error:', profileData)
-      return NextResponse.redirect(
-        `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?error=profile_fetch_failed`
-      )
-    }
+if (!profileResponse.ok) {
+  console.error('❌ LinkedIn profile error:', profileData)
+  return NextResponse.redirect(
+    `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?error=profile_fetch_failed`
+  )
+}
 
-    console.log('✅ LinkedIn profile received:', profileData.name)
+// Extract name from LinkedIn v2 format
+const firstName = profileData.localizedFirstName || ''
+const lastName = profileData.localizedLastName || ''
+const fullName = `${firstName} ${lastName}`.trim() || 'LinkedIn User'
+
+console.log('✅ LinkedIn profile received:', fullName)
+
+// Update the database save to use correct field names
+const { error: dbError } = await supabase
+  .from('social_accounts')
+  .upsert({
+    user_id: state,
+    platform: 'linkedin',
+    platform_user_id: profileData.id, // Changed from profileData.sub
+    platform_username: fullName,      // Changed from profileData.name
+    access_token: tokenData.access_token,
+    refresh_token: tokenData.refresh_token,
+    token_expires_at: new Date(Date.now() + tokenData.expires_in * 1000).toISOString(),
+    profile_data: profileData,
+    is_active: true,
+  }, {
+    onConflict: 'user_id,platform'
+  })
 
     // Save to database
     const { error: dbError } = await supabase
