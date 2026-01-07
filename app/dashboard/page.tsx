@@ -34,9 +34,9 @@ function DashboardContent() {
   const [showConnectionSuccess, setShowConnectionSuccess] = useState(false)
   const [showConnectionError, setShowConnectionError] = useState(false)
   const [connectionMessage, setConnectionMessage] = useState('')
-  const [customPost, setCustomPost] = useState('')
-  //const [generatedPosts, setGeneratedPosts] = useState<string[]>([])
-
+  # Add the missing state variables at the top of dashboard
+const [customPost, setCustomPost] = useState('')
+const [generatedPosts, setGeneratedPosts] = useState<string[]>([])
 
 
   useEffect(() => {
@@ -227,71 +227,6 @@ function DashboardContent() {
     analytics.copyPost(platform)
     alert('✅ Copied to clipboard!')
   }
-// Share generated post to Facebook
-async function shareToFacebook(postContent: string) {
-  if (!user?.id) {
-    alert('❌ Please log in first')
-    return
-  }
-
-  // Check if Facebook is connected
-  const fbConnection = connectedAccounts.find(acc => acc.platform === 'facebook')
-  if (!fbConnection) {
-    alert('❌ Please connect Facebook first!\n\nGo to Connect page to link your account.')
-    router.push('/connect')
-    return
-  }
-
-  const confirmed = confirm('📝 Post to Facebook?\n\nPreview:\n' + postContent.substring(0, 200) + '...\n\nClick OK to post now!')
-  
-  if (!confirmed) return
-
-  setLoading(true)
-
-  try {
-    const response = await fetch('/api/post-to-social', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        message: postContent,
-        userId: user.id,
-        platform: 'facebook'
-      })
-    })
-    
-    const data = await response.json()
-    
-    if (data.success) {
-      alert(`✅ Posted successfully to ${data.page || 'Facebook'}!\n\n📊 Post ID: ${data.postId}\n\n🎉 Check your Facebook page!`)
-      analytics.trackEvent('post_shared', { 
-        platform: 'facebook',
-        source: 'dashboard',
-        post_id: data.postId
-      })
-    } else {
-      alert(`❌ Error: ${data.error}\n\n${JSON.stringify(data.details || '', null, 2)}`)
-      analytics.error('post_share_failed', data.error, 'dashboard')
-    }
-  } catch (error) {
-    console.error('Post error:', error)
-    alert('❌ Failed to post. Please try again.')
-    analytics.error('post_share_exception', String(error), 'dashboard')
-  } finally {
-    setLoading(false)
-  }
-}
-
-// Share custom post
-async function shareCustomPost() {
-  if (!customPost.trim()) {
-    alert('❌ Please write a post first!')
-    return
-  }
-
-  shareToFacebook(customPost)
-}
 
   function handlePlatformChange(newPlatform: string) {
     setPlatform(newPlatform)
@@ -756,53 +691,53 @@ async function shareCustomPost() {
               ))}
             </div>
           )}
+		  
+        {/* Custom Post Section - ADD THIS HERE! */}
+          <div className="bg-white rounded-xl shadow-lg p-6 mt-8">
+            <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+              <span>✍️</span>
+              <span>Write Custom Post</span>
+            </h3>
+            
+            <div className="space-y-4">
+              <textarea
+                value={customPost}
+                onChange={(e) => setCustomPost(e.target.value)}
+                placeholder="Write your custom post here... or generate one with AI above!"
+                className="w-full h-32 p-4 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none resize-none"
+                maxLength={2000}
+              />
+              
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-500">
+                  {customPost.length}/2000 characters
+                </span>
+                
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setCustomPost('')}
+                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm font-semibold"
+                  >
+                    Clear
+                  </button>
+                  
+                  <button
+                    onClick={shareCustomPost}
+                    disabled={!customPost.trim() || loading}
+                    className="px-6 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:shadow-lg transition-all text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {loading ? '⏳ Posting...' : '📤 Share to Facebook'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
         </div>
       </main>
     </div>
   )
 }
-
-
-{/* Custom Post Section */}
-<div className="bg-white rounded-xl shadow-lg p-6 mb-6">
-  <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-    <span>✍️</span>
-    <span>Write Custom Post</span>
-  </h3>
-  
-  <div className="space-y-4">
-    <textarea
-      value={customPost}
-      onChange={(e) => setCustomPost(e.target.value)}
-      placeholder="Write your custom post here... or generate one with AI above!"
-      className="w-full h-32 p-4 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none resize-none"
-      maxLength={2000}
-    />
-    
-    <div className="flex items-center justify-between">
-      <span className="text-sm text-gray-500">
-        {customPost.length}/2000 characters
-      </span>
-      
-      <div className="flex gap-3">
-        <button
-          onClick={() => setCustomPost('')}
-          className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm font-semibold"
-        >
-          Clear
-        </button>
-        
-        <button
-          onClick={shareCustomPost}
-          disabled={!customPost.trim() || loading}
-          className="px-6 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:shadow-lg transition-all text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {loading ? '⏳ Posting...' : '📤 Share to Facebook'}
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
 
 
 // Main component with Suspense wrapper
