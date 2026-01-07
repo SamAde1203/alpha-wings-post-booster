@@ -1,25 +1,16 @@
-import { NextRequest, NextResponse } from 'next/server'
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url)
+  const state = searchParams.get('state')
+  
+  // ✅ OFFICIAL SCOPES for Share on LinkedIn + Sign In
+  const scope = encodeURIComponent('openid profile email r_liteprofile r_ugc_posts')
+  
+  const authUrl = `https://www.linkedin.com/oauth/v2/authorization?` +
+    `response_type=code&` +
+    `client_id=${process.env.LINKEDIN_CLIENT_ID}&` +
+    `redirect_uri=${encodeURIComponent(process.env.LINKEDIN_REDIRECT_URI!)}&` +
+    `state=${state}&` +
+    `scope=${scope}`
 
-export async function POST(request: NextRequest) {
-  try {
-    const { userId } = await request.json()
-
-    if (!userId) {
-      return NextResponse.json({ error: 'User ID required' }, { status: 400 })
-    }
-
-    const linkedInAuthUrl = new URL('https://www.linkedin.com/oauth/v2/authorization')
-    linkedInAuthUrl.searchParams.append('response_type', 'code')
-    linkedInAuthUrl.searchParams.append('client_id', process.env.LINKEDIN_CLIENT_ID!)
-    linkedInAuthUrl.searchParams.append('redirect_uri', process.env.LINKEDIN_REDIRECT_URI!)
-    linkedInAuthUrl.searchParams.append('state', userId)
-
-    // Absolutely minimal scope: only posting
-    linkedInAuthUrl.searchParams.append('scope', 'w_member_social r_liteprofile')
-
-    return NextResponse.json({ authUrl: linkedInAuthUrl.toString() })
-  } catch (error) {
-    console.error('Error generating LinkedIn auth URL:', error)
-    return NextResponse.json({ error: 'Failed to generate auth URL' }, { status: 500 })
-  }
+  return NextResponse.redirect(authUrl)
 }
