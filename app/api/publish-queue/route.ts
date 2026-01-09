@@ -7,6 +7,34 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
+
+async function postToFacebook(accessToken: string, content: string) {
+  try {
+    const response = await fetch(`https://graph.facebook.com/v18.0/me/feed`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        message: content,
+        access_token: accessToken,
+      }),
+    });
+
+    const data = await response.json();
+    
+    return {
+      success: response.ok,
+      data: data,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
 export async function GET() {
   const now = new Date().toISOString()
   
