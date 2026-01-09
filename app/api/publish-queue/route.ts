@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { postToLinkedIn } from '@/lib/linkedin' // Your existing function
+import { postToLinkedIn } from '@/lib/linkedin'
 import { NextResponse } from 'next/server'
 
 const supabase = createClient(
@@ -7,8 +7,8 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-
-async function postToFacebook(accessToken: string, content: string) {
+// Fix return type
+async function postToFacebook(accessToken: string, content: string): Promise<{ success: boolean; error?: string; data?: any }> {
   try {
     const response = await fetch(`https://graph.facebook.com/v18.0/me/feed`, {
       method: 'POST',
@@ -23,8 +23,15 @@ async function postToFacebook(accessToken: string, content: string) {
 
     const data = await response.json();
     
+    if (!response.ok) {
+      return {
+        success: false,
+        error: data.error?.message || 'Facebook API error'
+      };
+    }
+    
     return {
-      success: response.ok,
+      success: true,
       data: data,
     };
   } catch (error) {
@@ -61,12 +68,11 @@ export async function GET() {
         continue
       }
 
-      let result = { success: false }
+      let result: { success: boolean; error?: string } = { success: false }
       
       if (post.platform === 'linkedin') {
         result = await postToLinkedIn(account.accesstoken, post.content)
       } else if (post.platform === 'facebook') {
-        // Add your Facebook API here (from dashboard)
         result = await postToFacebook(account.accesstoken, post.content)
       }
 
