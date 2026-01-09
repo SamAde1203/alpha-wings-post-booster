@@ -18,26 +18,19 @@ export async function POST(request: NextRequest) {
   )
 
   try {
-    // ✅ CHANGED: Expect 'content' not 'postId'
-    const { userId, content, platform = 'linkedin', scheduledAt } = await request.json()
+    const { userId, postId, platform = 'linkedin', scheduledAt } = await request.json()
     
-    console.log('Queue post:', { 
-      userId, 
-      platform, 
-      contentLength: content?.length,
-      scheduledAt: new Date(scheduledAt) 
-    })
+    console.log('Queue post:', { userId, postId, platform, scheduledAt: new Date(scheduledAt) })
     
-    // ✅ CHANGED: Insert into 'posts' table, not 'scheduled_posts'
     const { data, error } = await supabase
-      .from('posts')  // CHANGED: from 'scheduled_posts' to 'posts'
+      .from('scheduled_posts')
       .insert({
         user_id: userId,
-        content: content,      // Direct content (not post_id)
-        platform: platform,
-        scheduled_at: scheduledAt,  // CHANGED: column name in posts table
-        status: 'scheduled',   // CHANGED: status value for posts table
-        tone: 'custom',
+        post_id: postId,
+        platform,
+        scheduled_time: scheduledAt,
+        status: 'pending',
+        auto_publish: true,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
@@ -49,10 +42,10 @@ export async function POST(request: NextRequest) {
       throw error
     }
 
-    console.log('Post saved to posts table:', data.id)
+    console.log('Scheduled post saved:', data.id)
     return NextResponse.json({ 
       success: true, 
-      postId: data.id,
+      scheduledPostId: data.id,
       message: `✅ Post scheduled for ${new Date(scheduledAt).toLocaleString()}` 
     })
   } catch (error: any) {

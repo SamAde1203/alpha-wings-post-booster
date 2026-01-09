@@ -43,6 +43,10 @@ const [generatedPosts, setGeneratedPosts] = useState<string[]>([])
 const [scheduleDate, setScheduleDate] = useState('')
 const [scheduleTime, setScheduleTime] = useState('09:00')
 const [scheduledPosts, setScheduledPosts] = useState<any[]>([])
+ // NEW: Hashtag state
+  const [hashtags, setHashtags] = useState<string[]>([])
+  const [loadingHashtags, setLoadingHashtags] = useState(false)
+
 
 
   useEffect(() => {
@@ -142,30 +146,6 @@ useEffect(() => {
       })
     }
   }
-//debug function  
-async function debugSchedule() {
-  const testData = {
-    userId: userId || 'debug',
-    content: 'TEST POST DEBUG',
-    platform: 'facebook',
-    scheduledAt: new Date(Date.now() + 60000).toISOString() // 1 min
-  }
-  
-  console.log('Sending:', testData)
-  
-  const res = await fetch('/api/queue-post', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(testData)
-  })
-  
-  const data = await res.json()
-  console.log('Response:', data)
-  alert(`Status: ${res.status}\nData: ${JSON.stringify(data)}`)
-}
-
-
-
 
   async function disconnectAccount(accountId: string, platform: string) {
     const confirmed = confirm(`Are you sure you want to disconnect your ${platform} account?`)
@@ -378,6 +358,50 @@ async function loadScheduledPosts() {
     setScheduledPosts(data)
   }
 }
+
+ // HASHTAG FUNCTIONS =====
+  async function generateHashtags() {
+    if (!customPost.trim()) {
+      alert('✍️ Write a post first!')
+      return
+    }
+
+    setLoadingHashtags(true)
+    
+    try {
+      const res = await fetch('/api/generate-hashtags', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: customPost,
+          platform: platform
+        })
+      })
+
+      const data = await res.json()
+      
+      if (data.hashtags) {
+        setHashtags(data.hashtags)
+        analytics.trackEvent('hashtags_generated', { 
+          platform, 
+          count: data.hashtags.length 
+        })
+      }
+    } catch (err) {
+      console.error(err)
+      alert('❌ Failed to generate hashtags')
+    } finally {
+      setLoadingHashtags(false)
+    }
+  }
+
+  function copyHashtags() {
+    const hashtagText = hashtags.join(' ')
+    navigator.clipboard.writeText(hashtagText)
+    alert('✅ Hashtags copied!')
+    analytics.trackEvent('hashtags_copied', { count: hashtags.length })
+  }
+  
 
 // Schedule post
 
@@ -902,16 +926,6 @@ async function handleDeleteScheduled(postId: string) {
             </div>
           </div>
 
-
-//debug button
-<button
-  onClick={debugSchedule}
-  className="px-4 py-2 bg-orange-500 text-white rounded mt-4"
->
-  🐛 Debug Save
-</button>
-
-
           {/* Generated Posts */}
           {posts.length > 0 && (
             <div className="space-y-4">
@@ -961,15 +975,6 @@ async function handleDeleteScheduled(postId: string) {
               ))}
             </div>
           )}
-
-          {/* Debug button */}
-          <button
-            onClick={debugSchedule}
-            className="px-4 py-2 bg-orange-500 text-white rounded mt-4"
-          >
-            🐛 Debug Save
-          </button>
-
           {/* Custom Post Section */}
           <div className="bg-white rounded-xl shadow-lg p-6 mt-8">
             <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
@@ -1010,6 +1015,50 @@ async function handleDeleteScheduled(postId: string) {
               </div>
             </div>
           </div>
+		  {/* Hashtag Section */}
+<div className="mt-4">
+  <div className="flex items-center justify-between mb-3">
+    <label className="block font-medium text-sm">Suggested Hashtags</label>
+    <button
+      onClick={generateHashtags}
+      disabled={loadingHashtags || !customPost.trim()}
+      className="px-4 py-2 bg-gradient-to-r from-pink-500 to-purple-500 text-white rounded-lg font-semibold hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm"
+    >
+      {loadingHashtags ? '⚡ Generating...' : '✨ Generate Hashtags'}
+    </button>
+  </div>
+
+  {hashtags.length > 0 && (
+    <div className="bg-gradient-to-r from-pink-50 to-purple-50 rounded-xl p-4 border-2 border-pink-200">
+      <div className="flex flex-wrap gap-2 mb-3">
+        {hashtags.map((tag, i) => (
+          <span
+            key={i}
+            className="px-3 py-1 bg-white text-purple-700 rounded-full text-sm font-semibold shadow-sm"
+          >
+            {tag}
+          </span>
+        ))}
+      </div>
+      
+      <div className="flex gap-2">
+        <button
+          onClick={copyHashtags}
+          className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-semibold text-sm"
+        >
+          📋 Copy All
+        </button>
+        <button
+          onClick={() => setCustomPost(customPost + '\n\n' + hashtags.join(' '))}
+          className="px-4 py-2 bg-white text-purple-700 border-2 border-purple-300 rounded-lg hover:bg-purple-50 transition-colors font-semibold text-sm"
+        >
+          ➕ Add to Post
+        </button>
+      </div>
+    </div>
+  )}
+</div>
+
 
           {/* POST SCHEDULER - NEW SECTION */}
           <div className="bg-white rounded-xl shadow-lg p-6 mt-8">

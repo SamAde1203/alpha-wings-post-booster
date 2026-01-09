@@ -19,22 +19,22 @@ export async function GET(request: NextRequest) {
     const state = searchParams.get('state')
     const error = searchParams.get('error')
 
-    console.log('🔵 LinkedIn Callback:', { code: !!code, state, error })
+    console.log('🔵 LinkedIn callback received:', { hasCode: !!code, state, error })
 
     if (error) {
-      console.error('❌ OAuth error:', error)
+      console.error('❌ LinkedIn OAuth error:', error)
       return NextResponse.redirect(
-        `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?error=oauth_error:${error}`
+        `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?error=linkedin_auth_failed&message=${error}`
       )
     }
 
     if (!code || !state) {
       return NextResponse.redirect(
-        `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?error=missing_code_state`
+        `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?error=missing_params`
       )
     }
 
-    // 1. Exchange code for access token
+    // 1) Exchange code for access token
     const tokenResponse = await fetch('https://www.linkedin.com/oauth/v2/accessToken', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -48,108 +48,54 @@ export async function GET(request: NextRequest) {
     })
 
     const tokenData = await tokenResponse.json()
-    console.log('🔵 Token response:', { 
-      status: tokenResponse.status,
-      hasToken: !!tokenData.access_token,
-      scopes: tokenData.scope 
-    })
 
-    if (!tokenResponse.ok || !tokenData.access_token) {
-      console.error('❌ Token failed:', tokenData)
+    if (!tokenResponse.ok) {
+      console.error('❌ LinkedIn token error:', tokenData)
       return NextResponse.redirect(
-        `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?error=token_failed&details=${encodeURIComponent(JSON.stringify(tokenData))}`
+        `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?error=token_exchange_failed`
       )
     }
 
-    // 2. Get user info (CRITICAL - need person URN for posting)
-    const userResponse = await fetch('https://api.linkedin.com/v2/userinfo', {
-      headers: {
-        'Authorization': `Bearer ${tokenData.access_token}`,
-      },
-    })
+    console.log('✅ LinkedIn access token received')
 
-    let userData = null
-    let linkedInUserId = null
-    let userEmail = null
-    let userName = 'LinkedIn User'
-
-    if (userResponse.ok) {
-      userData = await userResponse.json()
-      console.log('🔵 User info:', userData)
-      
-      // Extract LinkedIn person URN (format: "urn:li:person:abc123")
-      linkedInUserId = userData.sub
-      
-      // Get email and name
-      userEmail = userData.email || null
-      userName = userData.name || `${userData.given_name || ''} ${userData.family_name || ''}`.trim() || 'LinkedIn User'
-      
-      if (!linkedInUserId) {
-        // Fallback: Try to get URN from me endpoint
-        try {
-          const meResponse = await fetch('https://api.linkedin.com/v2/me', {
-            headers: {
-              'Authorization': `Bearer ${tokenData.access_token}`,
-              'X-Restli-Protocol-Version': '2.0.0'
-            },
-          })
-          if (meResponse.ok) {
-            const meData = await meResponse.json()
-            linkedInUserId = meData.id
-            console.log('🔵 Fallback user ID from /me:', linkedInUserId)
-          }
-        } catch (meError) {
-          console.error('Fallback /me error:', meError)
-        }
-      }
-    } else {
-      console.warn('⚠️ Could not get user info:', await userResponse.text())
+ // Save to database with minimal info
+const { error: dbError } = await supabase
+  .from('social_accounts')
+  .upsert(
+    {
+      user_id: state,              // must match your auth user id type
+      platform: 'linkedin',
+      platform_user_id: null,      // make sure this column is nullable
+      platform_username: 'LinkedIn Account',
+      access_token: tokenData.access_token,
+      refresh_token: tokenData.refresh_token ?? null,
+      token_expires_at: tokenData.expires_in
+        ? new Date(Date.now() + tokenData.expires_in * 1000).toISOString()
+        : null,
+      profile_data: null,
+      is_active: true,
+    },
+    {
+      onConflict: 'user_id,platform',
     }
+  )
 
-    // 3. Calculate token expiry
-    const expiresAt = tokenData.expires_in 
-      ? new Date(Date.now() + parseInt(tokenData.expires_in) * 1000).toISOString()
-      : null
+if (dbError) {
+  console.error('❌ Database error (LinkedIn):', dbError)
+  return NextResponse.redirect(
+    `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?error=database_error&message=${encodeURIComponent(dbError.message)}`
+  )
+}
 
-    // 4. Save to database with user URN
-    const { error: dbError } = await supabase
-      .from('social_accounts')
-      .upsert({
-        user_id: state,
-        platform: 'linkedin',
-        platform_user_id: linkedInUserId, // ✅ CRITICAL: Store the LinkedIn person URN
-        platform_username: userName,
-        platform_user_email: userEmail,
-        access_token: tokenData.access_token,
-        refresh_token: tokenData.refresh_token || null,
-        token_expires_at: expiresAt,
-        profile_data: userData, // Store full user data
-        metadata: {
-          scopes: tokenData.scope ? tokenData.scope.split(' ') : [],
-          user_info: userData
-        },
-        is_active: true,
-      }, { 
-        onConflict: 'user_id,platform',
-        ignoreDuplicates: false 
-      })
+    console.log('✅ LinkedIn account saved to database')
 
-    if (dbError) {
-      console.error('❌ DB error:', dbError)
-      return NextResponse.redirect(
-        `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?error=db_error&details=${encodeURIComponent(dbError.message)}`
-      )
-    }
-
-    console.log('✅ LinkedIn connected successfully! User ID:', linkedInUserId)
     return NextResponse.redirect(
       `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?success=linkedin_connected`
     )
-
-  } catch (err: any) {
-    console.error('💥 Callback crash:', err)
+  } catch (err) {
+    console.error('❌ LinkedIn callback error:', err)
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?error=crash&details=${encodeURIComponent(err.message)}`
+      `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?error=unexpected_error`
     )
   }
 }
