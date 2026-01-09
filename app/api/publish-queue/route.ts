@@ -14,7 +14,6 @@ async function postToFacebook(accessToken: string, content: string): Promise<{
   error?: string;
 }> {
   console.log(`[Facebook Mock] Posting content: ${content.substring(0, 50)}...`)
-  // For now, return success - you can implement actual Facebook API later
   return {
     success: true,
     postId: `fb-mock-${Date.now()}`
@@ -47,12 +46,15 @@ export async function GET() {
         continue
       }
 
-      let result = { success: false, error: '' }
+      // FIX: Use a more flexible type
+      let result: { success: boolean; error?: string; postId?: string; url?: string; data?: any } = { 
+        success: false 
+      }
       
       if (post.platform === 'linkedin') {
         result = await postToLinkedIn(account.accesstoken, post.content)
       } else if (post.platform === 'facebook') {
-        result = await postToFacebook(account.accesstoken, post.content) // Now works!
+        result = await postToFacebook(account.accesstoken, post.content)
       }
 
       if (result.success) {
