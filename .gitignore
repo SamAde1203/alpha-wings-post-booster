@@ -46,9 +46,6 @@ next-env.d.ts
 .idea/
 .vscode/
 
-# Local-only development folders
-web-app/
-
 # Python
 __pycache__/
 *.pyc
