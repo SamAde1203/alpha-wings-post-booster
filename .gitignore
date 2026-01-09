@@ -51,7 +51,3 @@ __pycache__/
 *.pyc
 venv/
 
-web-app/node_modules/
-web-app/.next/
-web-app/dist/
-web-app/build/
