@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 
 export async function POST(request: NextRequest) {
-  const requestHeaders = headers()
+  const requestHeaders = headers() // ✅ This is correct for App Router
   
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
