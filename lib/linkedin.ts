@@ -221,7 +221,7 @@ export async function validateLinkedInToken(accessToken: string) {
   } catch (error) {
     return {
       valid: false,
-      error: error.message
+      error: error instanceof Error ? error.message : 'Unknown error'
     }
   }
 }
