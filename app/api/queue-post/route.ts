@@ -3,18 +3,28 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 
 export async function POST(request: NextRequest) {
+  const cookieStore = await cookies() // ✅ AWAIT it!
+  
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
-      cookies: cookies() // ✅ Pass directly - Supabase handles it
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) =>
+            cookieStore.set(name, value, options)
+          )
+        }
+      }
     }
   )
 
   try {
     const { userId, postId, platform = 'linkedin', scheduledAt } = await request.json()
     
-    // Rest of your code EXACTLY the same...
     const { data, error } = await supabase
       .from('scheduled_posts')
       .insert({
@@ -35,14 +45,12 @@ export async function POST(request: NextRequest) {
       throw error
     }
 
-    console.log('Scheduled post saved:', data.id)
     return NextResponse.json({ 
       success: true, 
       scheduledPostId: data.id,
       message: `✅ Post scheduled for ${new Date(scheduledAt).toLocaleString()}` 
     })
   } catch (error: any) {
-    console.error('Queue error:', error)
     return NextResponse.json({ 
       success: false, 
       error: error.message || 'Failed to schedule post' 
