@@ -323,7 +323,7 @@ async function openCustomerPortal() {
                   {tierEmojis[user?.subscription_tier?.toLowerCase() || 'free']} {user?.subscription_tier?.toUpperCase() || 'FREE'}
                 </span>
               </div>
-
+// 
              {user?.subscription_tier !== 'free' && (
   <button
     onClick={openCustomerPortal}
@@ -333,7 +333,8 @@ async function openCustomerPortal() {
     {saving ? 'Opening...' : '💳 Manage Subscription & Billing'}
   </button>
 )}
-
+</div> 
+</div>
 
           {/* Danger Zone */}
           <div className="bg-white rounded-2xl shadow-xl p-6 border-2 border-red-200">
