@@ -2,23 +2,52 @@ import { createClient } from '@supabase/supabase-js'
 import { postToLinkedIn } from '@/lib/linkedin'
 import { NextResponse } from 'next/server'
 
-type PublishResult = {
-  success: boolean
-  error?: string
-  postId?: string
-}
-
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
+// Fix return type
+async function postToFacebook(accessToken: string, content: string): Promise<{ success: boolean; error?: string; data?: any }> {
+  try {
+    const response = await fetch(`https://graph.facebook.com/v18.0/me/feed`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        message: content,
+        access_token: accessToken,
+      }),
+    });
+
+    const data = await response.json();
+    
+    if (!response.ok) {
+      return {
+        success: false,
+        error: data.error?.message || 'Facebook API error'
+      };
+    }
+    
+    return {
+      success: true,
+      data: data,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
 export async function GET() {
   const now = new Date().toISOString()
-
+  
   const { data: readyPosts } = await supabase
     .from('posts')
-    .select('*, socialaccounts(accesstoken, platform_username, platform)')
+    .select('*, socialaccounts(accesstoken, platform_username)')
     .eq('status', 'scheduled')
     .lte('scheduled_at', now)
     .limit(5)
@@ -27,7 +56,7 @@ export async function GET() {
 
   for (const post of readyPosts || []) {
     try {
-      const account = post.socialaccounts?.find((acc: any) =>
+      const account = post.socialaccounts?.find((acc: any) => 
         acc.platform === post.platform
       )
 
@@ -39,15 +68,12 @@ export async function GET() {
         continue
       }
 
-      let result: PublishResult = { success: false }
-
+      let result: { success: boolean; error?: string } = { success: false }
+      
       if (post.platform === 'linkedin') {
         result = await postToLinkedIn(account.accesstoken, post.content)
       } else if (post.platform === 'facebook') {
-        // Not implemented yet (prevents build errors)
-        result = { success: false, error: 'Facebook publishing not implemented yet' }
-      } else {
-        result = { success: false, error: `Unsupported platform: ${post.platform}` }
+        result = await postToFacebook(account.accesstoken, post.content)
       }
 
       if (result.success) {
@@ -59,9 +85,9 @@ export async function GET() {
       } else {
         await supabase
           .from('posts')
-          .update({
-            status: 'failed',
-            error_message: result.error || 'Publish failed'
+          .update({ 
+            status: 'failed', 
+            error_message: result.error || 'Publish failed' 
           })
           .eq('id', post.id)
       }
@@ -69,9 +95,9 @@ export async function GET() {
       console.error('Publish error:', post.id, error)
       await supabase
         .from('posts')
-        .update({
-          status: 'failed',
-          error_message: error.message
+        .update({ 
+          status: 'failed', 
+          error_message: error.message 
         })
         .eq('id', post.id)
     }
