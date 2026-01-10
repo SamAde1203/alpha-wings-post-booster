@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { createClient } from '@supabase/supabase-js'
-import { getPlanFromPriceId } from '@/lib/pricing-config'  // ✅ add this
+import { getPlanFromPriceId } from '@/lib/pricing-config'  
 
 export const runtime = 'nodejs'
 
