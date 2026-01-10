@@ -97,6 +97,35 @@ export default function SettingsPage() {
 
     setSaving(false)
   }
+async function openCustomerPortal() {
+  if (!user?.stripe_customer_id) {
+    alert('No subscription found')
+    return
+  }
+
+  setSaving(true)
+  analytics.trackEvent('customer_portal_opened', { user_id: user?.id })
+
+  try {
+    const res = await fetch('/api/customer-portal', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ customerId: user.stripe_customer_id })
+    })
+
+    const { url, error } = await res.json()
+    
+    if (url) {
+      window.location.href = url
+    } else {
+      alert('Error: ' + (error || 'Could not open portal'))
+    }
+  } catch (error: any) {
+    alert('Error: ' + error.message)
+  }
+  
+  setSaving(false)
+}
 
   async function handleCancelSubscription() {
     if (!confirm('Are you sure you want to cancel your subscription? You will lose access to premium features.')) {
@@ -295,23 +324,16 @@ export default function SettingsPage() {
                 </span>
               </div>
 
-              {user?.subscription_tier !== 'free' && (
-                <button
-                  onClick={handleCancelSubscription}
-                  className="w-full py-3 bg-yellow-500 text-white rounded-lg font-semibold hover:bg-yellow-600"
-                >
-                  Cancel Subscription
-                </button>
-              )}
+             {user?.subscription_tier !== 'free' && (
+  <button
+    onClick={openCustomerPortal}
+    disabled={saving}
+    className="w-full py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50"
+  >
+    {saving ? 'Opening...' : '💳 Manage Subscription & Billing'}
+  </button>
+)}
 
-              <a
-                href="/pricing"
-                className="block w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white text-center rounded-lg font-semibold hover:shadow-lg transition-all"
-              >
-                View All Plans
-              </a>
-            </div>
-          </div>
 
           {/* Danger Zone */}
           <div className="bg-white rounded-2xl shadow-xl p-6 border-2 border-red-200">
