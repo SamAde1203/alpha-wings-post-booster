@@ -1,1163 +1,543 @@
+// app/page.tsx 
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
-import { createClient } from '@supabase/supabase-js'
-import { useRouter, useSearchParams } from 'next/navigation'
-import Image from 'next/image'
-import Navigation from '@/components/Navigation'
+import Link from 'next/link'
+import Image from "next/image"
+import { Check, X, Zap, DollarSign, Clock, Sparkles, Target, TrendingUp, Users, Play, ChevronRight, Star, Shield } from 'lucide-react'
 import { analytics } from '@/lib/analytics'
-import ConnectFacebookButton from '@/components/ConnectFacebookButton'
-import ConnectLinkedInButton from '@/components/ConnectLinkedInButton'
+import { useEffect } from 'react'
+import { Play, ChevronRight, Star, Shield } from 'lucide-react'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-)
-
-// Separate component for the content that uses useSearchParams
-function DashboardContent() {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const [userId, setUserId] = useState<string | null>(null)
-  const [topic, setTopic] = useState('')
-  const [platform, setPlatform] = useState('linkedin')
-  const [tone, setTone] = useState('professional')
-  const [loading, setLoading] = useState(false)
-  const [posts, setPosts] = useState<any[]>([])
-  const [error, setError] = useState('')
-  const [postsRemaining, setPostsRemaining] = useState(5)
-  const [user, setUser] = useState<any>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [contentLength, setContentLength] = useState('medium')
-  const [writingStyle, setWritingStyle] = useState('direct')
-  const [customInstructions, setCustomInstructions] = useState('')
-  const [connectedAccounts, setConnectedAccounts] = useState<any[]>([])
-  const [showConnectionSuccess, setShowConnectionSuccess] = useState(false)
-  const [showConnectionError, setShowConnectionError] = useState(false)
-  const [connectionMessage, setConnectionMessage] = useState('')
-  const [customPost, setCustomPost] = useState('')
-  const [generatedPosts, setGeneratedPosts] = useState<string[]>([])
-  const [scheduleDate, setScheduleDate] = useState('')
-  const [scheduleTime, setScheduleTime] = useState('09:00')
-  const [scheduledPosts, setScheduledPosts] = useState<any[]>([])
-
+export default function HomePage() {
+  // Track landing page view
   useEffect(() => {
-    checkAuth()
-    checkConnectionStatus()
+    analytics.trackEvent('view_landing_page', {
+      page: 'home',
+      timestamp: new Date().toISOString()
+    })
   }, [])
-
-  useEffect(() => {
-    if (user) {
-      loadScheduledPosts()
-    }
-  }, [user])
-
-  useEffect(() => {
-    if (user) {
-      analytics.viewDashboard()
-      analytics.track('dashboard_plan_view', {
-        plan: user.subscription_tier || 'free',
-        posts_remaining: postsRemaining,
-        posts_used: user.posts_this_month || 0
-      })
-      loadConnectedAccounts(user.id)
-    }
-  }, [user])
-
-  function checkConnectionStatus() {
-    const success = searchParams.get('success')
-    const error = searchParams.get('error')
-    const message = searchParams.get('message')
-
-    if (success === 'facebook_connected') {
-      setShowConnectionSuccess(true)
-      setConnectionMessage('✅ Facebook account connected successfully!')
-      setTimeout(() => setShowConnectionSuccess(false), 5000)
-      
-      analytics.trackEvent('social_account_connected', {
-        platform: 'facebook',
-        success: true
-      })
-    }
-
-    if (error) {
-      setShowConnectionError(true)
-      setConnectionMessage(`❌ Connection failed: ${message || error}`)
-      setTimeout(() => setShowConnectionError(false), 8000)
-      
-      analytics.error('social_account_connection', message || error, 'dashboard')
-    }
-  }
-
-  async function checkAuth() {
-    try {
-      const { data } = await supabase.auth.getSession()
-
-      if (!data.session?.user?.id) {
-        router.push('/login')
-        return
-      }
-
-      const userId = data.session.user.id
-      setUserId(userId)
-      await loadUserData(userId)
-    } catch (err) {
-      console.error('Auth error:', err)
-      analytics.error('authentication', 'Session check failed', 'dashboard')
-      router.push('/login')
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  async function loadUserData(userId: string) {
-    const { data } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', userId)
-      .single()
-
-    if (data) {
-      setUser(data)
-      setPostsRemaining(data.posts_limit - data.posts_this_month)
-    }
-  }
-
-  async function loadConnectedAccounts(userId: string) {
-    const { data } = await supabase
-      .from('social_accounts')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('is_active', true)
-
-    if (data) {
-      setConnectedAccounts(data)
-      analytics.trackEvent('connected_accounts_loaded', {
-        count: data.length,
-        platforms: data.map(acc => acc.platform)
-      })
-    }
-  }
-
-  // Load scheduled posts
-  async function loadScheduledPosts() {
-    if (!userId) return
-    
-    const { data } = await supabase
-      .from('scheduled_posts')
-      .select(`
-        *,
-        generated_posts:post_id (content, platform, tone)
-      `)
-      .eq('user_id', userId)
-      .order('scheduled_time', { ascending: false })
-      .limit(20)
-    
-    if (data) {
-      // Format data to include content
-      const formattedData = data.map(post => ({
-        ...post,
-        content: post.generated_posts?.content || '',
-        platform: post.platform,
-        scheduled_at: post.scheduled_time
-      }))
-      setScheduledPosts(formattedData)
-    }
-  }
-
-  async function disconnectAccount(accountId: string, platform: string) {
-    const confirmed = confirm(`Are you sure you want to disconnect your ${platform} account?`)
-    if (!confirmed) return
-
-    const { error } = await supabase
-      .from('social_accounts')
-      .update({ is_active: false })
-      .eq('id', accountId)
-
-    if (!error && userId) {
-      await loadConnectedAccounts(userId)
-      analytics.trackEvent('social_account_disconnected', { platform })
-      alert(`✅ ${platform} account disconnected!`)
-    }
-  }
-
-  function getTierInfo() {
-    if (!user) return { name: 'FREE', limit: 5, icon: '🎁' }
-
-    const tier = user.subscription_tier?.toLowerCase() || 'free'
-
-    switch (tier) {
-      case 'starter':
-        return { name: 'STARTER', limit: 50, icon: '⭐' }
-      case 'pro':
-        return { name: 'PRO', limit: 200, icon: '🚀' }
-      case 'agency':
-        return { name: 'AGENCY', limit: 999999, icon: '👑' }
-      default:
-        return { name: 'FREE', limit: 5, icon: '🎁' }
-    }
-  }
-
-  const tierInfo = getTierInfo()
-  const isUnlimited = tierInfo.limit > 10000
-
-  async function handleGenerate() {
-    if (!topic.trim()) {
-      setError('Please enter a topic')
-      analytics.trackEvent('generate_validation_error', {
-        error: 'empty_topic',
-        platform,
-        tone
-      })
-      return
-    }
-
-    if (!userId) return
-
-    setLoading(true)
-    setError('')
-    setPosts([])
-
-    try {
-      analytics.generatePost(platform, tone, topic)
-
-      const res = await fetch('/api/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          userId, 
-          topic, 
-          platform, 
-          tone, 
-          contentLength, 
-          writingStyle, 
-          customInstructions, 
-          variationCount: 3 
-        })
-      })
-
-      const data = await res.json()
-
-      if (!res.ok) throw new Error(data.error)
-
-      setPosts(data.posts)
-      setPostsRemaining(data.postsRemaining)
-      await loadUserData(userId)
-
-      analytics.trackEvent('post_generation_success', {
-        platform,
-        tone,
-        topic,
-        variations_generated: data.posts.length,
-        posts_remaining: data.postsRemaining,
-        plan: user?.subscription_tier || 'free'
-      })
-
-    } catch (err: any) {
-      setError(err.message)
-      analytics.error('post_generation', err.message, 'dashboard')
-      
-      if (err.message.includes('limit')) {
-        analytics.usageLimitReached(user?.subscription_tier || 'free', tierInfo.limit)
-      }
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  async function shareToLinkedIn(postContent: string) {
-    const confirmed = confirm('📝 Post to LinkedIn?\n\n' + postContent.substring(0, 200) + '...')
-    if (!confirmed) return
-
-    setLoading(true)
-
-    try {
-      const response = await fetch('/api/post-to-linkedin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          userId: user?.id, 
-          postContent 
-        })
-      })
-
-      const data = await response.json()
-      
-      if (data.success) {
-        alert(`✅ Posted to LinkedIn!\n\n📊 ${data.url}`)
-      } else {
-        alert(`❌ ${data.error}`)
-      }
-    } catch (error) {
-      alert('❌ Network error')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  async function copyPost(content: string) {
-    navigator.clipboard.writeText(content)
-    analytics.copyPost(platform)
-    alert('✅ Copied to clipboard!')
-  }
-
-  async function shareToFacebook(postContent: string) {
-    if (!user?.id) {
-      alert('❌ Please log in first')
-      return
-    }
-
-    // Check if Facebook is connected
-    const fbConnection = connectedAccounts.find(acc => acc.platform === 'facebook')
-    if (!fbConnection) {
-      alert('❌ Please connect Facebook first!\n\nGo to Connect page to link your account.')
-      router.push('/connect')
-      return
-    }
-
-    const confirmed = confirm('📝 Post to Facebook?\n\nPreview:\n' + postContent.substring(0, 200) + '...\n\nClick OK to post now!')
-    
-    if (!confirmed) return
-
-    setLoading(true)
-
-    try {
-      const response = await fetch('/api/post-to-social', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message: postContent,
-          userId: user.id,
-          platform: 'facebook'
-        })
-      })
-      
-      const data = await response.json()
-      
-      if (data.success) {
-        alert(`✅ Posted successfully to ${data.page || 'Facebook'}!\n\n📊 Post ID: ${data.postId}\n\n🎉 Check your Facebook page!`)
-        analytics.trackEvent('post_shared', { 
-          platform: 'facebook',
-          source: 'dashboard',
-          post_id: data.postId
-        })
-      } else {
-        alert(`❌ Error: ${data.error}\n\n${JSON.stringify(data.details || '', null, 2)}`)
-        analytics.error('post_share_failed', data.error, 'dashboard')
-      }
-    } catch (error) {
-      console.error('Post error:', error)
-      alert('❌ Failed to post. Please try again.')
-      analytics.error('post_share_exception', String(error), 'dashboard')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  async function shareCustomPost() {
-    if (!customPost.trim()) {
-      alert('❌ Please write a post first!')
-      return
-    }
-
-    shareToFacebook(customPost)
-  }
-
-  // Schedule post
-  async function handleSchedulePost() {
-    if (!customPost.trim() || !scheduleDate || !scheduleTime || !userId) {
-      alert('Please write a post and select date/time')
-      return
-    }
-    
-    setLoading(true)
-    try {
-      const scheduledAt = new Date(`${scheduleDate}T${scheduleTime}:00Z`)
-      
-      // 1. Save to generated_posts
-      const { data: postData, error: postError } = await supabase
-        .from('generated_posts')
-        .insert({
-          user_id: userId,
-          content: customPost,
-          platform: platform,
-          tone: 'custom',
-          created_at: new Date().toISOString()
-        })
-        .select('id')
-        .single()
-      
-      if (postError) {
-        throw postError
-      }
-      
-      // 2. Schedule it
-      const response = await fetch('/api/queue-post', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId,
-          postId: postData.id,
-          platform: platform,
-          scheduledAt: scheduledAt.toISOString()
-        })
-      })
-      
-      const data = await response.json()
-      
-      if (!data.success) {
-        throw new Error(data.error)
-      }
-      
-      alert(`✅ ${data.message}`)
-      setCustomPost('')
-      setScheduleDate('')
-      await loadScheduledPosts()
-      
-    } catch (error: any) {
-      alert(`Failed to schedule: ${error.message}`)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // Delete scheduled post
-  async function handleDeleteScheduled(postId: string) {
-    if (!confirm('Cancel this scheduled post?')) return
-    
-    const { error } = await supabase
-      .from('scheduled_posts')
-      .delete()
-      .eq('id', postId)
-    
-    if (!error) {
-      alert('✅ Scheduled post cancelled')
-      await loadScheduledPosts()
-    }
-  }
-
-  // Debug function  
-  async function debugSchedule() {
-    if (!userId) {
-      alert('No user ID')
-      return
-    }
-    
-    // 1. Create generated post
-    const { data: postData } = await supabase
-      .from('generated_posts')
-      .insert({
-        user_id: userId,
-        content: 'TEST POST DEBUG',
-        platform: 'linkedin',
-        tone: 'professional'
-      })
-      .select()
-      .single()
-    
-    if (!postData) {
-      alert('Failed to create post')
-      return
-    }
-    
-    // 2. Create scheduled post
-    const scheduledAt = new Date(Date.now() + 60000).toISOString()
-    const { data, error } = await supabase
-      .from('scheduled_posts')
-      .insert({
-        post_id: postData.id,
-        user_id: userId,
-        platform: 'linkedin',
-        scheduled_time: scheduledAt,
-        status: 'pending',
-        auto_publish: true
-      })
-      .select()
-      .single()
-    
-    console.log('Result:', { data, error })
-    alert(error ? `Error: ${error.message}` : `✅ Scheduled! ID: ${data.id}`)
-  }
-
-  function handlePlatformChange(newPlatform: string) {
-    setPlatform(newPlatform)
-    analytics.trackEvent('platform_selected', {
-      platform: newPlatform,
-      previous_platform: platform
-    })
-  }
-
-  function handleToneChange(newTone: string) {
-    setTone(newTone)
-    analytics.trackEvent('tone_selected', {
-      tone: newTone,
-      previous_tone: tone,
-      platform
-    })
-  }
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex items-center justify-center">
-        <div className="text-2xl font-bold text-gray-700">Loading your dashboard...</div>
-      </div>
-    )
-  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
-      <Navigation />
-
-      <main className="w-full px-4 sm:px-6 py-8 sm:py-12">
-        <div className="max-w-5xl mx-auto">
-          {/* Connection Status Notifications */}
-          {showConnectionSuccess && (
-            <div className="mb-6 p-4 bg-green-50 border-2 border-green-500 rounded-xl text-green-700 font-semibold animate-pulse">
-              {connectionMessage}
-            </div>
-          )}
-
-          {showConnectionError && (
-            <div className="mb-6 p-4 bg-red-50 border-2 border-red-500 rounded-xl text-red-700 font-semibold">
-              {connectionMessage}
-            </div>
-          )}
-
-          {/* Header with Logo */}
-          <div className="mb-8 flex items-center gap-4">
-            <div className="w-12 h-12 sm:w-16 sm:h-16 flex-shrink-0">
-              <Image
-                src="/alpha-wings-ai-logo.png"
-                alt="Alpha Wings Logo"
-                width={64}
-                height={64}
-                className="w-full h-full object-contain"
-              />
-            </div>
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Alpha Wings</h1>
-              <p className="text-sm sm:text-base text-gray-600">AI-Powered Social Media Posts</p>
-            </div>
+      {/* Header */}
+      <header className="border-b bg-white/80 backdrop-blur-sm fixed w-full z-50 shadow-sm">
+        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
+          <div className="flex items-center space-x-3">
+            <Image
+              src="/alpha-wings-ai-logo.png"
+              alt="Alpha Wings AI"
+              width={40}
+              height={40}
+              priority
+            />
+            <span className="text-xl md:text-2xl font-bold text-gray-900">
+              Alpha Wings Post Booster
+            </span>
           </div>
 
-          {/* Connected Accounts Section */}
-          <div className="bg-white rounded-2xl shadow-xl p-4 sm:p-6 mb-6 sm:mb-8">
-            <h3 className="text-xl sm:text-2xl font-bold mb-4">Connected Accounts 🔗</h3>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {/* Facebook Card */}
-              <div className="border-2 border-gray-200 rounded-xl p-4">
-                {connectedAccounts.find(acc => acc.platform === 'facebook') ? (
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2">
-                      <div className="w-10 h-10 bg-[#1877F2] rounded-full flex items-center justify-center">
-                        <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-                        </svg>
-                      </div>
-                      <div className="flex-1">
-                        <div className="font-bold text-sm">Facebook</div>
-                        <div className="text-xs text-green-600">✓ Connected</div>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => {
-                        const account = connectedAccounts.find(acc => acc.platform === 'facebook')
-                        if (account) disconnectAccount(account.id, 'Facebook')
-                      }}
-                      className="w-full px-3 py-2 bg-red-100 text-red-700 rounded-lg text-xs font-semibold hover:bg-red-200 transition-colors"
-                    >
-                      Disconnect
-                    </button>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2 mb-3">
-                      <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
-                        <svg className="w-5 h-5 text-gray-500" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-                        </svg>
-                      </div>
-                      <div className="flex-1">
-                        <div className="font-bold text-sm">Facebook</div>
-                        <div className="text-xs text-gray-500">Not connected</div>
-                      </div>
-                    </div>
-                    <ConnectFacebookButton />
-                  </div>
-                )}
-              </div>
+          <div className="flex items-center space-x-4">
+            <Link 
+              href="/login"
+              onClick={() => analytics.clickCTA('header_login', 'header')}
+              className="text-gray-700 hover:text-gray-900 font-medium"
+            >
+              Login
+            </Link>
+            <Link 
+              href="/login"
+              onClick={() => analytics.clickCTA('header_get_started', 'header')}
+              className="bg-blue-600 text-white px-4 md:px-6 py-2 rounded-lg hover:bg-blue-700 font-semibold transition-colors"
+            >
+              Get Started
+            </Link>
+          </div>
+        </div>
+      </header>
 
-              {/* LinkedIn Card */}
-              <div className="border-2 border-gray-200 rounded-xl p-4">
-                {connectedAccounts.find(acc => acc.platform === 'linkedin') ? (
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2">
-                      <div className="w-10 h-10 bg-[#0A66C2] rounded-full flex items-center justify-center">
-                        <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
-                        </svg>
-                      </div>
-                      <div className="flex-1">
-                        <div className="font-bold text-sm">LinkedIn</div>
-                        <div className="text-xs text-green-600">✓ Connected</div>
-                      </div>
-                    </div>
-                    <div className="text-xs text-gray-600 mb-2">
-                      {connectedAccounts.find(acc => acc.platform === 'linkedin')?.platform_username}
-                    </div>
-                    <button
-                      onClick={() => {
-                        const account = connectedAccounts.find(acc => acc.platform === 'linkedin')
-                        if (account) disconnectAccount(account.id, 'LinkedIn')
-                      }}
-                      className="w-full px-3 py-2 bg-red-100 text-red-700 rounded-lg text-xs font-semibold hover:bg-red-200 transition-colors"
-                    >
-                      Disconnect
-                    </button>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2 mb-3">
-                      <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
-                        <svg className="w-5 h-5 text-gray-500" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
-                        </svg>
-                      </div>
-                      <div className="flex-1">
-                        <div className="font-bold text-sm">LinkedIn</div>
-                        <div className="text-xs text-gray-500">Not connected</div>
-                      </div>
-                    </div>
-                    <ConnectLinkedInButton />
-                  </div>
-                )}
-              </div>
+      {/* Hero Section */}
+<section className="pt-28 pb-16 px-4 relative overflow-hidden">
+  {/* Background effect */}
+  <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-white to-purple-50 opacity-50"></div>
+  
+  <div className="container mx-auto max-w-6xl text-center relative z-10">
+    {/* Trust badges */}
+    <div className="mb-6 flex flex-wrap justify-center items-center gap-3">
+      <span className="bg-blue-600 text-white px-4 py-2 rounded-full text-sm font-semibold shadow-md">
+        🚀 #1 AI Content Generator
+      </span>
+      <span className="bg-green-100 text-green-800 px-4 py-2 rounded-full text-sm font-semibold">
+        ⚡ 10x Faster Than Manual Writing
+      </span>
+      <span className="bg-purple-100 text-purple-800 px-4 py-2 rounded-full text-sm font-semibold">
+        💰 Save 90% vs Competitors
+      </span>
+    </div>
+    
+    {/* Main headline - More benefit-focused */}
+    <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold text-gray-900 mb-6 leading-tight">
+      <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+        AI Writes Your Social Media Posts
+      </span>
+      <br />
+      <span className="text-3xl md:text-5xl lg:text-6xl">
+        So You Don't Have To
+      </span>
+    </h1>
+    
+    {/* Subheadline with clear benefits */}
+    <p className="text-xl md:text-2xl text-gray-700 mb-8 max-w-3xl mx-auto">
+      Generate <strong className="text-blue-600">high-performing content</strong> for LinkedIn, Twitter, Facebook & Instagram in seconds. 
+      <span className="block mt-2 text-lg md:text-xl">
+        Save <span className="text-green-600 font-bold">$2,000+ per year</span> compared to Buffer, Hootsuite & Later.
+      </span>
+    </p>
+    
+    {/* Primary CTAs with clearer hierarchy */}
+    <div className="flex flex-col sm:flex-row gap-4 justify-center mb-10">
+      <Link 
+        href="/login"
+        onClick={() => analytics.clickCTA('hero_get_started_free', 'hero_section')}
+        className="group bg-gradient-to-r from-blue-600 to-blue-700 text-white px-8 py-4 rounded-xl hover:from-blue-700 hover:to-blue-800 font-bold text-lg inline-flex items-center justify-center shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1"
+      >
+        <Zap className="mr-3 h-5 w-5 group-hover:scale-110 transition-transform" />
+        Start Creating Free
+        <span className="ml-2 text-blue-200">(5 posts/month)</span>
+      </Link>
+      
+      <Link 
+        href="/pricing"
+        onClick={() => analytics.clickCTA('hero_compare_plans', 'hero_section')}
+        className="bg-white text-gray-800 px-8 py-4 rounded-xl hover:bg-gray-50 font-bold text-lg inline-flex items-center justify-center border-2 border-gray-300 hover:border-blue-500 transition-all shadow-md"
+      >
+        <DollarSign className="mr-2" />
+        Compare All Plans
+      </Link>
+    </div>
+    
+    {/* Demo video preview */}
+    <div className="mb-10">
+      <Link 
+        href="#demo-video"
+        onClick={() => analytics.clickCTA('hero_watch_demo', 'hero_section')}
+        className="inline-flex items-center text-blue-600 hover:text-blue-700 font-semibold text-lg group"
+      >
+        <Play className="mr-2 h-5 w-5 group-hover:scale-110 transition-transform" />
+        Watch 60-Second Demo
+        <ChevronRight className="ml-1 h-4 w-4 group-hover:translate-x-1 transition-transform" />
+      </Link>
+    </div>
+    
+    {/* Trust indicators - Social proof */}
+    <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-gray-200 max-w-2xl mx-auto">
+      <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+        {/* User count */}
+        <div className="text-center md:text-left">
+          <div className="text-2xl md:text-3xl font-bold text-gray-900">500+</div>
+          <div className="text-sm text-gray-600">Creators & Businesses</div>
+        </div>
+        
+        {/* Rating */}
+        <div className="text-center md:text-left">
+          <div className="flex items-center justify-center md:justify-start">
+            {[...Array(5)].map((_, i) => (
+              <Star key={i} className="h-5 w-5 text-yellow-500 fill-current" />
+            ))}
+            <span className="ml-2 text-lg font-bold text-gray-900">4.8/5</span>
+          </div>
+          <div className="text-sm text-gray-600">Average Rating</div>
+        </div>
+        
+        {/* Time saved */}
+        <div className="text-center md:text-left">
+          <div className="text-2xl md:text-3xl font-bold text-gray-900">10h+</div>
+          <div className="text-sm text-gray-600">Saved Per Week</div>
+        </div>
+      </div>
+    </div>
+    
+    {/* Quick benefits - Scannable */}
+    <div className="mt-12 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {[
+        { icon: Zap, text: '10-Second Content Generation' },
+        { icon: Target, text: 'Platform-Optimized Posts' },
+        { icon: Clock, text: 'Smart Auto-Scheduling' },
+        { icon: Shield, text: 'No Credit Card Required' },
+      ].map((item, i) => (
+        <div key={i} className="flex items-center justify-center space-x-2 text-gray-700">
+          <item.icon className="h-5 w-5 text-green-600" />
+          <span className="text-sm font-medium">{item.text}</span>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>
+      {/* Social Proof */}
+      <section className="py-12 bg-white border-y border-gray-200">
+        <div className="container mx-auto px-4">
+          <p className="text-center text-gray-600 mb-6">Trusted by solopreneurs, coaches, and content creators</p>
+          <div className="flex flex-wrap justify-center items-center gap-8 opacity-70">
+            <Users className="h-12 w-12 text-gray-700" />
+            <TrendingUp className="h-12 w-12 text-gray-700" />
+            <Target className="h-12 w-12 text-gray-700" />
+            <Sparkles className="h-12 w-12 text-gray-700" />
+          </div>
+        </div>
+      </section>
 
-              {/* Twitter - Coming Soon */}
-              <div className="border-2 border-gray-200 rounded-xl p-4 opacity-60">
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-10 h-10 bg-black rounded-full flex items-center justify-center">
-                      <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
-                      </svg>
-                    </div>
-                    <div className="flex-1">
-                      <div className="font-bold text-sm">Twitter</div>
-                      <div className="text-xs text-gray-500">Coming Soon</div>
-                    </div>
+      {/* Problem Section */}
+      <section className="py-20 bg-gray-50">
+        <div className="container mx-auto max-w-4xl px-4">
+          <h2 className="text-3xl md:text-4xl font-bold text-center text-gray-900 mb-4">
+            You're Being Ripped Off by Social Media Subscription Tools
+          </h2>
+          <p className="text-center text-gray-700 mb-12 text-lg">
+            Here's the truth nobody talks about:
+          </p>
+          
+          <div className="grid md:grid-cols-2 gap-6">
+            {[
+              { tool: 'Buffer', price: '$864/year', issue: 'YOU still write all your posts manually' },
+              { tool: 'Hootsuite', price: '$2,988/year', issue: "For features you'll never use" },
+              { tool: 'Hypefury', price: '$1,188/year', issue: 'Only works on Twitter (seriously?)' },
+              { tool: 'Later', price: '$960/year', issue: 'Their AI features? Non-existent' },
+            ].map((item, i) => (
+              <div key={i} className="bg-white p-6 rounded-lg shadow-md border-l-4 border-red-500 hover:shadow-lg transition-shadow">
+                <div className="flex items-start">
+                  <X className="h-6 w-6 text-red-600 mr-3 flex-shrink-0 mt-1" />
+                  <div>
+                    <h3 className="font-bold text-lg mb-1 text-gray-900">{item.tool} charges {item.price}</h3>
+                    <p className="text-gray-700">{item.issue}</p>
                   </div>
-                  <button disabled className="w-full px-3 py-2 bg-gray-200 text-gray-500 rounded-lg text-xs font-semibold cursor-not-allowed">
-                    Coming Soon
-                  </button>
                 </div>
               </div>
+            ))}
+          </div>
 
-              {/* Instagram - Coming Soon */}
-              <div className="border-2 border-gray-200 rounded-xl p-4 opacity-60">
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
-                      <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
-                      </svg>
-                    </div>
-                    <div className="flex-1">
-                      <div className="font-bold text-sm">Instagram</div>
-                      <div className="text-xs text-gray-500">Coming Soon</div>
-                    </div>
-                  </div>
-                  <button disabled className="w-full px-3 py-2 bg-gray-200 text-gray-500 rounded-lg text-xs font-semibold cursor-not-allowed">
-                    Coming Soon
-                  </button>
-                </div>
-              </div>
-            </div>
+          <div className="mt-12 text-center bg-yellow-50 border-2 border-yellow-300 rounded-lg p-6">
+            <p className="text-lg text-gray-800">
+              Meanwhile, you're spending <strong>10+ hours per week</strong> creating content for multiple platforms, 
+              watching your engagement tank because <strong>inconsistency kills growth</strong>.
+            </p>
+          </div>
+        </div>
+      </section>
 
-            <p className="text-xs text-gray-500 mt-4 text-center">
-              Connect your social media accounts to enable direct posting from Alpha Wings
+      {/* Solution Section */}
+      <section className="py-20">
+        <div className="container mx-auto max-w-6xl px-4">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+              The AI-Powered Social Media Tool That Actually Creates Your Content.
+            </h2>
+            <p className="text-xl text-gray-700 max-w-3xl mx-auto">
+              Post Booster doesn't just schedule your posts.<br />
+              It <strong>WRITES</strong> them. <strong>OPTIMIZES</strong> them. <strong>ADAPTS</strong> them for each platform.
             </p>
           </div>
 
-          {/* Stats Card */}
-          <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-4 sm:p-6 text-white mb-6 sm:mb-8">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              <div>
-                <h2 className="text-xl sm:text-2xl font-bold">
-                  {tierInfo.icon} {tierInfo.name} Plan
-                </h2>
-                <p className="text-blue-100 text-sm sm:text-base">
-                  {isUnlimited
-                    ? '♾️ Unlimited AI-powered posts'
-                    : `Generate up to ${tierInfo.limit} posts per month`}
-                </p>
+          <div className="grid md:grid-cols-3 gap-8 mb-12">
+            {[
+              {
+                icon: Sparkles,
+                title: 'AI Content Generation',
+                desc: 'Never stare at a blank screen again. AI writes engaging, platform-optimized posts in seconds.',
+                color: 'blue'
+              },
+              {
+                icon: Zap,
+                title: 'Multi-Platform Support',
+                desc: 'One idea becomes 4 platform-specific posts for LinkedIn, Twitter, Facebook & Instagram.',
+                color: 'purple'
+              },
+              {
+                icon: Clock,
+                title: 'Smart Scheduling',
+                desc: 'Schedule posts for optimal engagement times across all your connected accounts.',
+                color: 'green'
+              },
+            ].map((feature, i) => (
+              <div key={i} className="bg-white p-8 rounded-lg shadow-lg hover:shadow-xl transition-shadow text-center border-t-4 border-blue-600">
+                <feature.icon className="h-12 w-12 text-blue-600 mx-auto mb-4" />
+                <h3 className="text-xl font-bold mb-3 text-gray-900">{feature.title}</h3>
+                <p className="text-gray-700">{feature.desc}</p>
               </div>
-              <div className="text-right">
-                <div className="text-4xl sm:text-5xl font-bold">
-                  {isUnlimited ? '∞' : postsRemaining}
-                </div>
-                <div className="text-blue-100 text-sm sm:text-base">
-                  {isUnlimited ? 'Unlimited Posts' : 'Posts Remaining'}
-                </div>
-              </div>
-            </div>
+            ))}
           </div>
 
-          {/* Plan Details */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-6 sm:mb-8">
-            <div 
-              className="bg-white rounded-xl p-4 shadow-md cursor-pointer hover:shadow-lg transition-shadow"
-              onClick={() => analytics.viewUsageStats()}
+          <div className="text-center">
+            <Link 
+              href="/pricing"
+              onClick={() => analytics.clickCTA('solution_start_creating', 'solution_section')}
+              className="bg-blue-600 text-white px-8 py-4 rounded-lg hover:bg-blue-700 font-bold text-lg inline-flex items-center shadow-lg hover:shadow-xl transition-all"
             >
-              <div className="text-gray-600 text-xs sm:text-sm font-medium">Monthly Limit</div>
-              <div className="text-2xl sm:text-2xl font-bold text-blue-600 mt-2">
-                {isUnlimited ? '♾️' : tierInfo.limit}
-              </div>
-            </div>
-            <div 
-              className="bg-white rounded-xl p-4 shadow-md cursor-pointer hover:shadow-lg transition-shadow"
-              onClick={() => analytics.viewUsageStats()}
-            >
-              <div className="text-gray-600 text-xs sm:text-sm font-medium">Used This Month</div>
-              <div className="text-2xl sm:text-2xl font-bold text-orange-600 mt-2">{user?.posts_this_month || 0}</div>
-            </div>
-            <div 
-              className="bg-white rounded-xl p-4 shadow-md cursor-pointer hover:shadow-lg transition-shadow"
-              onClick={() => analytics.viewUsageStats()}
-            >
-              <div className="text-gray-600 text-xs sm:text-sm font-medium">Remaining</div>
-              <div className="text-2xl sm:text-2xl font-bold text-green-600 mt-2">
-                {isUnlimited ? '♾️' : postsRemaining}
-              </div>
-            </div>
+              Start Creating Better Content Now →
+            </Link>
           </div>
-
-          {/* Low Posts Warning */}
-          {!isUnlimited && postsRemaining < 3 && postsRemaining > 0 && (
-            <div className="bg-yellow-50 border-2 border-yellow-400 rounded-2xl p-4 sm:p-6 mb-6 sm:mb-8">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div>
-                  <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">
-                    ⚠️ Running Low on Posts!
-                  </h3>
-                  <p className="text-sm sm:text-base text-gray-700">
-                    You have only {postsRemaining} posts remaining this month.
-                  </p>
-                </div>
-                <button
-                  onClick={() => {
-                    analytics.clickUpgrade(tierInfo.name, 'higher_tier')
-                    window.location.href = '/pricing'
-                  }}
-                  className="px-4 sm:px-6 py-2 sm:py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl whitespace-nowrap transition-all text-sm sm:text-base"
-                >
-                  🚀 Upgrade Now
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Out of Posts */}
-          {!isUnlimited && postsRemaining <= 0 && (
-            <div className="bg-red-50 border-2 border-red-400 rounded-2xl p-4 sm:p-6 mb-6 sm:mb-8">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div>
-                  <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">
-                    🎉 Monthly Limit Reached!
-                  </h3>
-                  <p className="text-sm sm:text-base text-gray-700">
-                    You've used all {tierInfo.limit} posts for this month.
-                  </p>
-                </div>
-                <button
-                  onClick={() => {
-                    analytics.clickUpgrade(tierInfo.name, 'any_paid_plan')
-                    window.location.href = '/pricing'
-                  }}
-                  className="px-4 sm:px-6 py-2 sm:py-3 bg-gradient-to-r from-red-600 to-orange-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl whitespace-nowrap transition-all text-sm sm:text-base"
-                >
-                  📈 Upgrade Now
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Generation Form */}
-          <div className="bg-white rounded-2xl shadow-xl p-4 sm:p-8 mb-6 sm:mb-8">
-            <h3 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6">Generate New Post</h3>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block font-medium mb-2 text-sm sm:text-base">Topic 💡</label>
-                <input
-                  type="text"
-                  value={topic}
-                  onChange={(e) => setTopic(e.target.value)}
-                  placeholder="e.g., AI trends in 2026"
-                  className="w-full px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                  disabled={!isUnlimited && postsRemaining <= 0}
-                />
-              </div>
-
-              <div>
-                <label className="block font-medium mb-2 text-sm sm:text-base">Platform 📱</label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
-                  {['linkedin', 'twitter', 'facebook', 'instagram'].map((p) => (
-                    <button
-                      key={p}
-                      onClick={() => handlePlatformChange(p)}
-                      disabled={!isUnlimited && postsRemaining <= 0}
-                      className={`p-2 sm:p-3 rounded-xl border-2 font-medium capitalize transition-all text-sm sm:text-base ${
-                        platform === p
-                          ? 'border-blue-500 bg-blue-50 text-blue-700'
-                          : 'border-gray-200 hover:border-gray-300'
-                      } disabled:opacity-50 disabled:cursor-not-allowed`}
-                    >
-                      {p}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-medium mb-2 text-sm sm:text-base">Tone 🎭</label>
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-3">
-                  {['professional', 'casual', 'enthusiastic', 'educational', 'inspirational', 
-                    'humorous', 'authoritative', 'conversational', 'motivational', 'storytelling'].map((t) => (
-                    <button
-                      key={t}
-                      onClick={() => handleToneChange(t)}
-                      disabled={!isUnlimited && postsRemaining <= 0}
-                      className={`p-2 sm:p-3 rounded-xl border-2 font-medium capitalize transition-all text-xs sm:text-sm ${
-                        tone === t
-                          ? 'border-purple-500 bg-purple-50 text-purple-700'
-                          : 'border-gray-200 hover:border-gray-300'
-                      } disabled:opacity-50 disabled:cursor-not-allowed`}
-                    >
-                      {t}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-medium mb-2 text-sm sm:text-base">Content Length 📏</label>
-                <div className="grid grid-cols-3 gap-3">
-                  {[
-                    { value: 'short', label: 'Short', desc: '50-100 words' },
-                    { value: 'medium', label: 'Medium', desc: '100-200 words' },
-                    { value: 'long', label: 'Long', desc: '200-300 words' }
-                  ].map((length) => (
-                    <button
-                      key={length.value}
-                      onClick={() => {
-                        setContentLength(length.value)
-                        analytics.trackEvent('content_length_selected', { length: length.value })
-                      }}
-                      disabled={!isUnlimited && postsRemaining <= 0}
-                      className={`p-3 rounded-xl border-2 font-medium transition-all text-sm ${
-                        contentLength === length.value
-                          ? 'border-green-500 bg-green-50 text-green-700'
-                          : 'border-gray-200 hover:border-gray-300'
-                      } disabled:opacity-50 disabled:cursor-not-allowed`}
-                    >
-                      <div className="font-bold">{length.label}</div>
-                      <div className="text-xs opacity-75">{length.desc}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-medium mb-2 text-sm sm:text-base">Writing Style ✍️</label>
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-3">
-                  {[
-                    { value: 'direct', label: 'Direct', emoji: '🎯' },
-                    { value: 'storytelling', label: 'Story', emoji: '📖' },
-                    { value: 'listicle', label: 'Listicle', emoji: '📝' },
-                    { value: 'question', label: 'Question', emoji: '❓' },
-                    { value: 'howto', label: 'How-to', emoji: '🔧' }
-                  ].map((style) => (
-                    <button
-                      key={style.value}
-                      onClick={() => {
-                        setWritingStyle(style.value)
-                        analytics.trackEvent('writing_style_selected', { style: style.value })
-                      }}
-                      disabled={!isUnlimited && postsRemaining <= 0}
-                      className={`p-2 sm:p-3 rounded-xl border-2 font-medium transition-all text-xs sm:text-sm ${
-                        writingStyle === style.value
-                          ? 'border-blue-500 bg-blue-50 text-blue-700'
-                          : 'border-gray-200 hover:border-gray-300'
-                      } disabled:opacity-50 disabled:cursor-not-allowed`}
-                    >
-                      <div>{style.emoji}</div>
-                      <div>{style.label}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-medium mb-2 text-sm sm:text-base">
-                  Custom Instructions 💡 <span className="text-gray-500 text-xs">(Optional)</span>
-                </label>
-                <textarea
-                  value={customInstructions}
-                  onChange={(e) => setCustomInstructions(e.target.value)}
-                  placeholder="e.g., Include a call-to-action, mention our upcoming webinar, use emojis..."
-                  className="w-full px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all min-h-[80px]"
-                  disabled={!isUnlimited && postsRemaining <= 0}
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Add specific requirements or preferences for your post generation
-                </p>
-              </div>
-
-              {error && (
-                <div className="p-3 sm:p-4 bg-red-50 border-2 border-red-200 rounded-xl text-red-700 text-sm sm:text-base">
-                  <div className="font-bold mb-1">⚠️ {error}</div>
-                </div>
-              )}
-
-              <button
-                onClick={handleGenerate}
-                disabled={loading || (!isUnlimited && postsRemaining <= 0)}
-                className="w-full py-3 sm:py-4 px-4 sm:px-6 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold text-sm sm:text-lg shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-              >
-                {loading ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <span className="animate-spin">⏳</span>
-                    Generating...
-                  </span>
-                ) : !isUnlimited && postsRemaining <= 0 ? (
-                  '❌ Monthly Limit Reached'
-                ) : (
-                  '✨ Generate Posts'
-                )}
-              </button>
-            </div>
-          </div>
-
-          {/* Generated Posts */}
-          {posts.length > 0 && (
-            <div className="space-y-4 mb-8">
-              <h3 className="text-xl sm:text-2xl font-bold text-gray-900">Your Generated Posts</h3>
-              {posts.map((post, i) => (
-                <div key={i} className="bg-white rounded-2xl shadow-xl p-4 sm:p-6">
-                  <div className="flex flex-col sm:flex-row justify-between items-start gap-3 sm:items-start mb-4">
-                    <h4 className="font-bold text-base sm:text-lg text-gray-900">Variation {i + 1}</h4>
-                    
-                    {/* Buttons - Copy AND Share */}
-                    <div className="flex gap-2 w-full sm:w-auto">
-                      <button
-                        onClick={() => copyPost(post.content)}
-                        className="flex-1 sm:flex-none px-3 sm:px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-semibold shadow-md hover:shadow-lg text-sm sm:text-base"
-                      >
-                        📋 Copy
-                      </button>
-                      
-                      {/* Platform Selection Dropdown */}
-                      <select
-                        onChange={(e) => {
-                          if (e.target.value === 'facebook') shareToFacebook(post.content)
-                          if (e.target.value === 'linkedin') shareToLinkedIn(post.content)
-                          e.target.value = '' // reset
-                        }}
-                        disabled={loading}
-                        className="flex-1 sm:flex-none px-3 sm:px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:shadow-lg transition-all font-semibold shadow-md text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                      >
-                        <option value="">📤 Share to...</option>
-                        <option value="facebook">📘 Facebook</option>
-                        <option value="linkedin">💼 LinkedIn</option>
-                      </select>
-                    </div>
-                  </div>
-                  
-                  <div className="p-3 sm:p-4 bg-gray-50 rounded-xl mb-4 overflow-x-auto">
-                    <pre className="whitespace-pre-wrap font-sans text-xs sm:text-sm text-gray-800">{post.content}</pre>
-                  </div>
-                  
-                  <div className="flex flex-col sm:flex-row gap-3 sm:gap-6 text-xs sm:text-sm text-gray-600">
-                    <span>📝 {post.word_count} words</span>
-                    <span>🔤 {post.character_count} characters</span>
-                    <span>⭐ Quality: {post.quality_score}/10</span>
-                    <span className="capitalize">🎭 {post.tone}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Custom Post Section */}
-          <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
-            <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-              <span>✍️</span>
-              <span>Write Custom Post</span>
-            </h3>
-            
-            <div className="space-y-4">
-              <textarea
-                value={customPost}
-                onChange={(e) => setCustomPost(e.target.value)}
-                placeholder="Write your custom post here... or generate one with AI above!"
-                className="w-full h-32 p-4 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none resize-none"
-                maxLength={2000}
-              />
-              
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-500">
-                  {customPost.length}/2000 characters
-                </span>
-                
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => setCustomPost('')}
-                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm font-semibold"
-                  >
-                    Clear
-                  </button>
-                  
-                  <button
-                    onClick={shareCustomPost}
-                    disabled={!customPost.trim() || loading}
-                    className="px-6 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:shadow-lg transition-all text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {loading ? '⏳ Posting...' : '📤 Share to Facebook'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* POST SCHEDULER - NEW SECTION */}
-          <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
-            <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-              <span>📅</span>
-              <span>Schedule Posts</span>
-            </h3>
-            
-            <div className="space-y-4">
-              {/* Date/Time Picker */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2">Date</label>
-                  <input
-                    type="date"
-                    value={scheduleDate}
-                    onChange={(e) => setScheduleDate(e.target.value)}
-                    min={new Date().toISOString().split('T')[0]}
-                    className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium mb-2">Time (GMT)</label>
-                  <input
-                    type="time"
-                    value={scheduleTime}
-                    onChange={(e) => setScheduleTime(e.target.value)}
-                    className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              {/* Schedule Preview */}
-              {scheduleDate && scheduleTime && (
-                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <p className="text-sm text-gray-700">
-                    📌 Will post on: <strong>{new Date(`${scheduleDate}T${scheduleTime}`).toLocaleString()}</strong>
-                  </p>
-                </div>
-              )}
-
-              {/* Action Buttons */}
-              <div className="flex gap-3">
-                <button
-                  onClick={handleSchedulePost}
-                  disabled={!customPost.trim() || !scheduleDate || !scheduleTime || loading}
-                  className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:shadow-lg transition-all text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {loading ? '⏳ Scheduling...' : '📅 Schedule Post'}
-                </button>
-                
-                <button
-                  onClick={shareCustomPost}
-                  disabled={!customPost.trim() || loading}
-                  className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-lg hover:shadow-lg transition-all text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {loading ? '⏳ Posting...' : '🚀 Post Now'}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* SCHEDULED POSTS LIST */}
-          <div className="bg-white rounded-xl shadow-lg p-6">
-            <h3 className="text-xl font-bold mb-4">📋 Scheduled Posts ({scheduledPosts.length})</h3>
-            
-            {scheduledPosts.length === 0 ? (
-              <p className="text-gray-500 text-center py-8">No scheduled posts yet</p>
-            ) : (
-              <div className="space-y-3">
-                {scheduledPosts.map((post) => (
-                  <div key={post.id} className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors">
-                    <div className="flex justify-between items-start gap-4">
-                      <div className="flex-1">
-                        <p className="text-sm text-gray-700 line-clamp-2 mb-2">
-                          {post.content || 'No content available'}
-                        </p>
-                        <div className="flex items-center gap-4 text-xs text-gray-500">
-                          <span>📅 {new Date(post.scheduled_time).toLocaleString()}</span>
-                          <span className={`px-2 py-1 rounded ${
-                            post.status === 'pending' ? 'bg-blue-100 text-blue-700' :
-                            post.status === 'published' ? 'bg-green-100 text-green-700' :
-                            'bg-red-100 text-red-700'
-                          }`}>
-                            {post.status}
-                          </span>
-                          <span>🌐 {post.platform}</span>
-                          {post.published_url && (
-                            <a href={post.published_url} target="_blank" className="text-blue-600 hover:underline">
-                              View Post
-                            </a>
-                          )}
-                        </div>
-                      </div>
-                      
-                      {post.status === 'pending' && (
-                        <button
-                          onClick={() => handleDeleteScheduled(post.id)}
-                          className="px-3 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 text-xs font-semibold"
-                        >
-                          Cancel
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
         </div>
-      </main>
-    </div>
-  )
-}
+      </section>
 
-// Main component with Suspense wrapper
-export default function Dashboard() {
-  return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex items-center justify-center">
-        <div className="text-2xl font-bold text-gray-700">Loading...</div>
-      </div>
-    }>
-      <DashboardContent />
-    </Suspense>
+      {/* Features Grid */}
+      <section className="py-20 bg-gray-50">
+        <div className="container mx-auto max-w-6xl px-4">
+          <h2 className="text-3xl md:text-4xl font-bold text-center text-gray-900 mb-12">
+            Everything You Get with Post Booster
+          </h2>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[
+              '🤖 AI Content Generation',
+              '💼 LinkedIn Optimization',
+              '🐦 Twitter/X Integration',
+              '📘 Facebook Support',
+              '📸 Instagram Ready',
+              '#️⃣ Smart Hashtag Optimization',
+              '📅 Intelligent Scheduling',
+              '💡 Content Ideas Generator',
+              '⚡ Bulk Post Creation',
+              '🔄 Content Variations',
+              '📱 Mobile-Friendly Dashboard',
+              '💰 Flexible Pricing'
+            ].map((feature, i) => (
+              <div key={i} className="bg-white p-4 rounded-lg shadow-md flex items-start hover:shadow-lg transition-shadow border border-gray-200">
+                <Check className="h-6 w-6 text-green-600 mr-3 flex-shrink-0 mt-0.5" />
+                <span className="font-medium text-gray-900">{feature}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Pricing Comparison */}
+      <section className="py-20">
+        <div className="container mx-auto max-w-5xl px-4">
+          <h2 className="text-3xl md:text-4xl font-bold text-center text-gray-900 mb-4">
+            The Real Cost of Subscription Tools.
+          </h2>
+          <p className="text-center text-gray-700 mb-12 text-lg">
+            Let's do the math:
+          </p>
+          
+          <div className="bg-white rounded-lg shadow-xl overflow-hidden border border-gray-200">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-100">
+                  <tr>
+                    <th className="px-6 py-4 text-left font-bold text-gray-900">Tool</th>
+                    <th className="px-6 py-4 text-right font-bold text-gray-900">Year 1</th>
+                    <th className="px-6 py-4 text-right font-bold text-gray-900">5 Years</th>
+                    <th className="px-6 py-4 text-right font-bold text-gray-900">Savings vs Post Booster</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  <tr>
+                    <td className="px-6 py-4 font-medium text-gray-900">Sprout Social</td>
+                    <td className="px-6 py-4 text-right text-gray-900">$5,988</td>
+                    <td className="px-6 py-4 text-right text-red-700 font-bold">$29,940</td>
+                    <td className="px-6 py-4 text-right text-green-700 font-bold">$29,843</td>
+                  </tr>
+                  <tr>
+                    <td className="px-6 py-4 font-medium text-gray-900">Hootsuite</td>
+                    <td className="px-6 py-4 text-right text-gray-900">$2,988</td>
+                    <td className="px-6 py-4 text-right text-red-700 font-bold">$14,940</td>
+                    <td className="px-6 py-4 text-right text-green-700 font-bold">$14,843</td>
+                  </tr>
+                  <tr>
+                    <td className="px-6 py-4 font-medium text-gray-900">Hypefury</td>
+                    <td className="px-6 py-4 text-right text-gray-900">$1,188</td>
+                    <td className="px-6 py-4 text-right text-red-700 font-bold">$5,940</td>
+                    <td className="px-6 py-4 text-right text-green-700 font-bold">$5,843</td>
+                  </tr>
+                  <tr>
+                    <td className="px-6 py-4 font-medium text-gray-900">Buffer</td>
+                    <td className="px-6 py-4 text-right text-gray-900">$864</td>
+                    <td className="px-6 py-4 text-right text-red-700 font-bold">$4,320</td>
+                    <td className="px-6 py-4 text-right text-green-700 font-bold">$4,223</td>
+                  </tr>
+                  <tr className="bg-green-50 border-t-2 border-green-600">
+                    <td className="px-6 py-4 font-bold text-green-800">Post Booster</td>
+                    <td className="px-6 py-4 text-right font-bold text-green-800">$9.99-$99.99/mo</td>
+                    <td className="px-6 py-4 text-right font-bold text-green-800 text-xl">From $9.99 ✓</td>
+                    <td className="px-6 py-4 text-right font-bold text-green-800">—</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="mt-8 text-center">
+            <p className="text-xl text-gray-700 mb-6">
+              You could buy Post Booster <strong className="text-blue-600">154 times</strong> and still spend less than 5 years of Hootsuite.
+            </p>
+            <p className="text-lg text-gray-600">
+              That's a <strong>down payment on a house</strong> you're saving. 🏠
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="py-20 bg-gradient-to-r from-blue-600 to-blue-700 text-white">
+        <div className="container mx-auto max-w-4xl px-4 text-center">
+          <h2 className="text-3xl md:text-4xl font-bold mb-6 text-white">
+            Stop Paying Subscriptions. Start Owning Your Tools.
+          </h2>
+          <p className="text-xl mb-8 text-white opacity-95">
+            Join smart entrepreneurs who are saving thousands per year while posting better content.
+          </p>
+          <Link 
+            href="/pricing"
+            onClick={() => analytics.clickCTA('cta_main', 'cta_section')}
+            className="bg-white text-blue-600 px-8 py-4 rounded-lg hover:bg-gray-100 font-bold text-lg inline-block shadow-lg hover:shadow-xl transition-all"
+          >
+            View Pricing Plans →
+          </Link>
+          <p className="mt-6 text-white opacity-95">
+            ✅ 30-Day Money-Back Guarantee | ✅ Cancel Anytime | ✅ Free Plan Available
+          </p>
+        </div>
+      </section>
+
+      {/* FAQ Section */}
+      <section className="py-20">
+        <div className="container mx-auto max-w-3xl px-4">
+          <h2 className="text-3xl md:text-4xl font-bold text-center text-gray-900 mb-12">
+            Frequently Asked Questions
+          </h2>
+          
+          <div className="space-y-6">
+            {[
+              {
+                q: 'What plans are available?',
+                a: 'We offer 4 plans: Free (5 posts/month), Starter ($9.99/mo - 50 posts), Pro ($29.99/mo - 200 posts), and Agency ($99.99/mo - unlimited). All paid plans include AI generation, multi-platform posting, and analytics.'
+              },
+              {
+                q: 'Which platforms does it support?',
+                a: 'Currently: LinkedIn, Twitter/X, Facebook, and Instagram. We focus on the platforms that matter most for business growth and content creators.'
+              },
+              {
+                q: 'How good is the AI content generation?',
+                a: 'The AI is powered by GPT-4 (the same AI behind ChatGPT). It generates professional, engaging, platform-optimized content. You can edit anything it writes, but 90% of users post the AI-generated content as-is or with minor tweaks.'
+              },
+              {
+                q: 'What if I don\'t like it?',
+                a: '30-day money-back guarantee. If Post Booster doesn\'t save you time and help you post consistently, just email us within 30 days for a full refund. No questions asked.'
+              }
+            ].map((faq, i) => (
+              <div key={i} className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
+                <h3 className="font-bold text-lg mb-2 text-gray-900">{faq.q}</h3>
+                <p className="text-gray-700">{faq.a}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Final CTA */}
+      <section className="py-16 bg-gray-50">
+        <div className="container mx-auto max-w-4xl px-4 text-center">
+          <h3 className="text-2xl md:text-3xl font-bold text-gray-900 mb-6">
+            Ready to Stop Paying Subscriptions?
+          </h3>
+          <Link 
+            href="/login"
+            onClick={() => analytics.clickCTA('final_get_started', 'final_cta_section')}
+            className="bg-blue-600 text-white px-8 py-4 rounded-lg hover:bg-blue-700 font-bold text-lg inline-flex items-center shadow-lg hover:shadow-xl transition-all"
+          >
+            <DollarSign className="mr-2" />
+            Get Started Free
+          </Link>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="bg-gray-900 text-white py-12">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="grid md:grid-cols-4 gap-8 mb-8">
+            {/* Company Info */}
+            <div>
+              <h3 className="text-2xl font-bold mb-4 bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+                Alpha Wings AI
+              </h3>
+              <p className="text-gray-400 mb-4">
+                AI-powered social media content generation for the modern creator.
+              </p>
+              <div className="flex gap-3">
+                <a 
+                  href="https://twitter.com/alphawingsai" 
+                  onClick={() => analytics.clickCTA('footer_twitter', 'footer')}
+                  className="text-2xl hover:text-blue-400 transition-colors"
+                >
+                  🐦
+                </a>
+                <a 
+                  href="https://linkedin.com/company/alphawingsai" 
+                  onClick={() => analytics.clickCTA('footer_linkedin', 'footer')}
+                  className="text-2xl hover:text-blue-400 transition-colors"
+                >
+                  💼
+                </a>
+                <a 
+                  href="https://facebook.com/alphawingsai" 
+                  onClick={() => analytics.clickCTA('footer_facebook', 'footer')}
+                  className="text-2xl hover:text-blue-400 transition-colors"
+                >
+                  📘
+                </a>
+                <a 
+                  href="https://instagram.com/alphawingsai" 
+                  onClick={() => analytics.clickCTA('footer_instagram', 'footer')}
+                  className="text-2xl hover:text-blue-400 transition-colors"
+                >
+                  📸
+                </a>
+              </div>
+            </div>
+
+            {/* Product */}
+            <div>
+              <h4 className="font-bold mb-4 text-lg">Product</h4>
+              <ul className="space-y-2 text-gray-400">
+                <li><a href="/dashboard" className="hover:text-white transition-colors">Dashboard</a></li>
+                <li><a href="/schedule" className="hover:text-white transition-colors">Schedule Posts</a></li>
+                <li><a href="/pricing" className="hover:text-white transition-colors">Pricing</a></li>
+                <li><a href="/faq" className="hover:text-white transition-colors">FAQ</a></li>
+              </ul>
+            </div>
+
+            {/* Company */}
+            <div>
+              <h4 className="font-bold mb-4 text-lg">Company</h4>
+              <ul className="space-y-2 text-gray-400">
+                <li><a href="/about" className="hover:text-white transition-colors">About Us</a></li>
+                <li><a href="/contact" className="hover:text-white transition-colors">Contact</a></li>
+                <li><a href="mailto:hello@alphawingsai.com" className="hover:text-white transition-colors">Email Us</a></li>
+                <li><a href="mailto:hello@alphawingsai.com" className="hover:text-white transition-colors">Support</a></li>
+              </ul>
+            </div>
+
+            {/* Legal */}
+            <div>
+              <h4 className="font-bold mb-4 text-lg">Legal</h4>
+              <ul className="space-y-2 text-gray-400">
+                <li><a href="/privacy" className="hover:text-white transition-colors">Privacy Policy</a></li>
+                <li><a href="/terms" className="hover:text-white transition-colors">Terms of Service</a></li>
+                <li><a href="/cookies" className="hover:text-white transition-colors">Cookie Policy</a></li>
+                <li><a href="/gdpr" className="hover:text-white transition-colors">GDPR</a></li>
+              </ul>
+            </div>
+          </div>
+
+          {/* Bottom Bar */}
+          <div className="border-t border-gray-800 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
+            <p className="text-gray-400 text-sm">
+              © 2026 Alpha Wings AI. All rights reserved.
+            </p>
+            <p className="text-gray-400 text-sm">
+              Built with ❤️ by <a href="https://apexdigitalafrica.com" className="text-blue-400 hover:text-blue-300">Apex Digital Africa</a>
+            </p>
+          </div>
+        </div>
+      </footer>
+    </div>
   )
 }
