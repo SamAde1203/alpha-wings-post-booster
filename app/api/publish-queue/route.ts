@@ -7,14 +7,11 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-// Fix return type
-async function postToFacebook(accessToken: string, content: string): Promise<{ success: boolean; error?: string; data?: any }> {
+async function postToFacebook(accessToken: string, content: string) {
   try {
     const response = await fetch(`https://graph.facebook.com/v18.0/me/feed`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         message: content,
         access_token: accessToken,
@@ -22,23 +19,11 @@ async function postToFacebook(accessToken: string, content: string): Promise<{ s
     });
 
     const data = await response.json();
-    
-    if (!response.ok) {
-      return {
-        success: false,
-        error: data.error?.message || 'Facebook API error'
-      };
-    }
-    
-    return {
-      success: true,
-      data: data,
-    };
+    return response.ok 
+      ? { success: true, data } 
+      : { success: false, error: data.error?.message || 'Facebook API error' };
   } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    };
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
   }
 }
 
@@ -68,7 +53,7 @@ export async function GET() {
         continue
       }
 
-      let result: { success: boolean; error?: string } = { success: false }
+      let result: any
       
       if (post.platform === 'linkedin') {
         result = await postToLinkedIn(account.accesstoken, post.content)
@@ -76,7 +61,7 @@ export async function GET() {
         result = await postToFacebook(account.accesstoken, post.content)
       }
 
-      if (result.success) {
+      if (result?.success) {
         await supabase
           .from('posts')
           .update({ status: 'published', published_at: now })
@@ -87,22 +72,17 @@ export async function GET() {
           .from('posts')
           .update({ 
             status: 'failed', 
-            error_message: result.error || 'Publish failed' 
+            error_message: result?.error || 'Publish failed' 
           })
           .eq('id', post.id)
       }
     } catch (error: any) {
-      console.error('Publish error:', post.id, error)
       await supabase
         .from('posts')
-        .update({ 
-          status: 'failed', 
-          error_message: error.message 
-        })
+        .update({ status: 'failed', error_message: error.message })
         .eq('id', post.id)
     }
   }
 
-  console.log(`Cron published ${publishedCount} posts`)
   return NextResponse.json({ published: publishedCount })
 }
