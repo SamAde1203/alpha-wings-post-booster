@@ -942,14 +942,6 @@ function DashboardContent() {
             </div>
           </div>
 
-          {/* Debug button */}
-          <button
-            onClick={debugSchedule}
-            className="px-4 py-2 bg-orange-500 text-white rounded mt-4 mb-6"
-          >
-            🐛 Debug Schedule
-          </button>
-
           {/* Generated Posts */}
           {posts.length > 0 && (
             <div className="space-y-4 mb-8">
