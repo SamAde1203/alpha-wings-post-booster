@@ -1,27 +1,20 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers' // ✅ Change this import
+import { cookies } from 'next/headers'
 
 export async function POST(request: NextRequest) {
-  const cookieStore = cookies() // ✅ Change this line
-  
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value // ✅ Fixed
-        }
-      }
+      cookies: cookies() // ✅ Pass directly - Supabase handles it
     }
   )
 
   try {
     const { userId, postId, platform = 'linkedin', scheduledAt } = await request.json()
     
-    console.log('Queue post:', { userId, postId, platform, scheduledAt: new Date(scheduledAt) })
-    
+    // Rest of your code EXACTLY the same...
     const { data, error } = await supabase
       .from('scheduled_posts')
       .insert({
