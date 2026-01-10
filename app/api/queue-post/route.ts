@@ -1,9 +1,9 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextRequest, NextResponse } from 'next/server'
-import { headers } from 'next/headers'
+import { cookies } from 'next/headers' // ✅ Change this import
 
 export async function POST(request: NextRequest) {
-  const requestHeaders = headers() // ✅ This is correct for App Router
+  const cookieStore = cookies() // ✅ Change this line
   
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
     {
       cookies: {
         get(name: string) {
-          return requestHeaders.get(name)
+          return cookieStore.get(name)?.value // ✅ Fixed
         }
       }
     }
