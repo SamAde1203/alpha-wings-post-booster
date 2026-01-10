@@ -1,4 +1,3 @@
-// app/page.tsx 
 'use client'
 
 import Link from 'next/link'
@@ -6,7 +5,6 @@ import Image from "next/image"
 import { Check, X, Zap, DollarSign, Clock, Sparkles, Target, TrendingUp, Users, Play, ChevronRight, Star, Shield } from 'lucide-react'
 import { analytics } from '@/lib/analytics'
 import { useEffect } from 'react'
-import { Play, ChevronRight, Star, Shield } from 'lucide-react'
 
 export default function HomePage() {
   // Track landing page view
