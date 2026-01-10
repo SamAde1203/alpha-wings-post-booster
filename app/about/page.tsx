@@ -113,10 +113,10 @@ export default function AboutPage() {
       <div className="absolute left-1/2 transform -translate-x-1/2 h-full w-1 bg-gradient-to-b from-blue-500 to-purple-500"></div>
       
       {[
-        { year: '2023', title: 'Idea Born', desc: 'Recognized the content creation struggle among creators' },
-        { year: 'Q1 2024', title: 'MVP Built', desc: 'First version with basic AI content generation' },
-        { year: 'Q2 2024', title: 'Beta Launch', desc: '100+ early adopters joined the waitlist' },
-        { year: 'Q3 2024', title: 'Multi-Platform', desc: 'Added LinkedIn, Twitter, Facebook, Instagram' },
+        { year: '2024', title: 'Idea Born', desc: 'Recognized the content creation struggle among creators' },
+        { year: 'Q1 2025', title: 'MVP Built', desc: 'First version with basic AI content generation' },
+        { year: 'Q2 2025', title: 'Beta Launch', desc: '100+ early adopters joined the waitlist' },
+        { year: 'Q3 2025', title: 'Multi-Platform', desc: 'Added LinkedIn, Twitter, Facebook, Instagram' },
         { year: 'Today', title: 'Public Launch', desc: 'Full-featured platform with smart scheduling' },
       ].map((milestone, i) => (
         <div key={i} className={`relative mb-12 ${i % 2 === 0 ? 'text-left' : 'text-right'}`}>
