@@ -13,22 +13,7 @@ export async function POST(request: NextRequest) {
 
     const session = await stripe.billingPortal.sessions.create({
       customer: customerId,
-      return_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings`, // ← Fixed env var
-      // Add portal features:
-      features: {
-        customer_update: {
-          enabled: true,
-        },
-        invoice_history: {
-          enabled: true,
-        },
-        subscription_cancel: {
-          enabled: true,
-        },
-        subscription_update: {
-          enabled: true,
-        },
-      },
+      return_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings`,
     })
 
     return NextResponse.json({ url: session.url })
